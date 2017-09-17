@@ -25,8 +25,8 @@ namespace cfg {
     // toSize(mass)
     float foodStartSize   = 10.0;
     float virusStartSize  = 100.0;
-    float motherStartSize = 141.42;
-    float playerStartSize = 32.0;
+    float motherStartSize = 149.33184523068078; // Mothercell's start with this value at vanilla (223 mass)
+    float playerStartSize = 31.622776601683793; // 10 mass
 
     // Default virus & mothercell colors
     // Format: { r, g, b }
