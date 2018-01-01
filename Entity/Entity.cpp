@@ -1,39 +1,98 @@
 #include "Entity.h"
 
-// ====Entity====
+/********* ENTITY *********/
 
-const int Entity::getId() const {
-    return _id;
-}
-const float Entity::getSize() const {
-    return _size;
-}
-const float Entity::getMass() const {
-    return _mass;
-}
-const Color Entity::getColor() const {
-    return _color;
-}
-const Position Entity::getPosition() const {
-    return _position;
-}
-const float Entity::getSquareSize() const {
-    return _squareSize;
+const unsigned int &Entity::getNodeId() const {
+    return _nodeId;
 }
 
-void Entity::setSize(const float &size) {
-    _size        = size;
-    _squareSize  = _size * _size;
-    _mass        = _squareSize / 100;
-}
-void Entity::setPosition(const Position& position) {
+void Entity::setPosition(const Position &position) {
+    if (_position.x == position.x && _position.y == position.y)
+        return;
     _position = position;
 }
-void Entity::setColor(const Color& color) {
-    _color = color;
+const Position &Entity::getPosition() const {
+    return _position;
 }
 
-// *entity1 << entity2->getSize()
-void Entity::operator<<(const float& size) {
-    setSize(std::hypot(_size, size));
+void Entity::setColor(const Color &color) {
+    _color = color;
+}
+const Color &Entity::getColor() const {
+    return _color;
+}
+
+void Entity::setSize(const double &size) {
+    _size = size;
+    _sizeSquared = size * size;
+    _mass = _sizeSquared / 100;
+}
+const double &Entity::getSize() const {
+    return _size;
+}
+const double &Entity::getSizeSquared() const {
+    return _sizeSquared;
+}
+const double &Entity::getMass() const {
+    return _mass;
+}
+
+Entity::Entity() {
+
+}
+
+Entity::~Entity() {
+
+}
+
+/********* FOOD *********/
+
+Food::Food() {
+    setColor(getRandomColor());
+    setPosition(getRandomPosition());
+    setSize(config<double>("foodStartSize"));
+}
+
+Food::~Food() {
+	
+}
+
+/********* VIRUS *********/
+
+Virus::Virus() {
+
+}
+
+Virus::~Virus() {
+
+}
+
+/********* EJECTED *********/
+
+Ejected::Ejected() {
+	
+}
+
+Ejected::~Ejected() {
+
+}
+
+/********* MOTHERCELL *********/
+
+MotherCell::MotherCell() {
+
+}
+
+MotherCell::~MotherCell() {
+
+}
+
+/********* PLAYERCELL *********/
+
+PlayerCell::PlayerCell() {
+
+}
+
+PlayerCell::~PlayerCell() {
+
 }
