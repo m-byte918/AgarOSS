@@ -1,48 +1,44 @@
-// Do I really need a seperate file for these?
-
 #pragma once
-#include <random> 	// rand()
-#include <vector> 	// randomColor()
-#include <cmath>    // std::sqrt()
-#include <valarray> // std::shuffle()
 
-// Entity stuff
-static int lastNodeId = 1;
-struct Color { uint8_t r, g, b; };
-struct Position { float x, y; };
+#include <random> // rand()
+#include <fstream> // config()
+#include <string> // config()
+#include <sstream> // config()
 
-// Converts mass to size
-// Usage: toSize(mass);
-static float toSize(const int &x) {
-    return std::sqrt(x*100);
-}
+struct Position { 
+    double x, y; 
+	
+    bool operator==(const Position &p) {
+        return x == p.x && y == p.y;
+    }
+    bool operator!=(const Position &p) {
+        return x != p.x || y != p.y;
+    }
+};
 
-// use this instead of rand() % x
 // Usage: rand(min, max);
 static int rand(const int& min, const int& max) {
     std::mt19937 e{std::random_device{}()};
-    std::uniform_int_distribution<int> x(min, max);
+    std::uniform_int_distribution<> x(min, max);
+    return x(e);
+}
+static double rand(const double& min, const double& max) {
+    std::mt19937 e{std::random_device{}()};
+    std::uniform_real_distribution<> x(min, max);
     return x(e);
 }
 
-static int getNextNodeId() {
-    if (lastNodeId > 2147483647)
-        lastNodeId = 1;
-    return lastNodeId++;
-}
+template <typename T>
+static T config(const std::string &name) {
+    std::string line;
+    std::ifstream in("Settings.ini");
+    while (std::getline(in, line)) {
+        std::istringstream sin(line.substr(line.find("=") + 1));
 
-static Color randomColor() {
-    uint8_t RGB[3] = { 255, 7, (uint8_t)rand(0, 256) };
-
-    std::shuffle(&RGB[0], &RGB[3], std::random_device{});
-    return { RGB[0], RGB[2], RGB[1] };
-}
-
-// checkIntersection({x, y}, size, entity);
-// basically same thing as canEat() in Entity.h. combine those?
-static bool checkIntersection(const Position& position, const float& size, const auto &entity) {
-    return std::hypot(
-        position.x - entity->getPosition().x,
-        position.y - entity->getPosition().y)
-    <= (size + entity->getSize());
+        if (line.find(name) != -1) {
+            T value;
+            sin >> value;
+            return value;
+        }
+    }
 }
