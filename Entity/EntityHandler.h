@@ -1,95 +1,37 @@
-#include <iostream>
-#include <algorithm>
-#include "Entity.h"
-#include "../Settings.h"
+#pragma once
 
-std::vector<Food*>       _food;        // Vector of food
-std::vector<Virus*>      _viruses;     // Vector of viruses
-std::vector<MotherCell*> _mothercells; // Vector of mothercells
-std::vector<PlayerCell*> _playercells; // Vector of playercells
+#include <valarray>
+#include "../Utils.h"
 
-namespace ent {
+class Food;
+class Virus;
+class Ejected;
+class MotherCell;
+class PlayerCell;
 
-    // Ent *ent1 = ent::add<Ent>(_vec, {x, y}, {r, g, b}, size);
-    // adds a unique entity and returns a pointer to it
-    template <class T>
-    T* add(std::vector<auto*> &_vec, const Position& position, const Color& color, const float& size) {
-        T *entity = new T();
-        entity->setSize(size);
-        entity->setColor(color);
-        entity->setPosition(position);
-        _vec.push_back(entity);
-        return entity;
-    }
+static std::vector<Food*>       _foods;
+static std::vector<Virus*>      _viruses;
+static std::vector<Ejected*>    _ejecteds;
+static std::vector<MotherCell*> _mothercells;
+static std::vector<PlayerCell*> _playercells;
 
-    // todo: move this to Util.h without creating circular dependency
-    // returns random position on the map through format { x, y }
-    Position getRandomPosition() {
-        return {
-            (float)rand(-cfg::mapWidth / 2, cfg::mapWidth / 2), 
-            (float)rand(-cfg::mapHeight / 2, cfg::mapHeight / 2)
-        };
-    }
+static unsigned int prevNodeId = 0;
 
-    void spawnStartingEntities() {
-        for (int i = 0; i <= cfg::foodStartAmount; ++i) {
-            add<Food>(_food, getRandomPosition(), randomColor(), cfg::foodStartSize);
-        }
-        for (int i = 0; i <= cfg::virusStartAmount; ++i) {
-            add<Virus>(_viruses, getRandomPosition(), cfg::virusColor, cfg::virusStartSize);
-        }
-    }
+struct Color { unsigned char r, g, b; };
 
-    // template this function for multiple entity-use l8ter
-    PlayerCell* addSafePlayerCell(const Color& color, const float& size) {
-        Position position = getRandomPosition();
+// returns random position on the map through format { x, y }
+static Position getRandomPosition() {
+    double halfWidth = config<double>("mapWidth") / 2;
+    double halfHeight = config<double>("mapHeight") / 2;
+    return {
+        rand(-halfWidth, halfWidth), 
+        rand(-halfHeight, halfHeight)
+    };
+}
 
-        // Check for intersection with other players and viruses
-        // todo: replace infinite while loop with a set amount of attempts
-        for (const auto &i : _playercells) {
-            while (checkIntersection(position, size, i) == true) {
-                position = getRandomPosition();
-                continue;
-            }
-        }
-        for (const auto &i : _viruses) {
-            while (checkIntersection(position, size, i) == true) {
-                std::cout << "yes2\n";
-                position = getRandomPosition();
-                continue;
-            }
-        }
-        return add<PlayerCell>(_playercells, position, color, size);
-    }
-    //MotherCell* addSafeMotherCell() {
-    //}
-    //Virus* addSafeVirus() {
-    //}
+static Color getRandomColor() {
+    unsigned char RGB[3] = { 255, 7, (unsigned char)rand(0, 256) };
 
-    // ent::remove(entity, vector);
-    // deletes entity and removes it from vector
-    void remove(auto &entity, auto &vec) {
-        delete entity;
-        entity = nullptr;
-        vec.erase(std::remove(vec.begin(), vec.end(), entity), vec.end());
-    }
-
-    // removes all entities and clears all vectors
-    void removeAll() {
-        // remove all entities
-        for (int i = 0; i < _food.size(); ++i)
-            remove(_food[i], _food);
-        for (int i = 0; i < _viruses.size(); ++i)
-            remove(_viruses[i], _viruses);
-        for (int i = 0; i < _mothercells.size(); ++i)
-            remove(_mothercells[i], _mothercells);
-        for (int i = 0; i < _playercells.size(); ++i)
-            remove(_playercells[i], _playercells);
-
-        // clear all entity vectors
-        _food.clear();
-        _viruses.clear();
-        _mothercells.clear();
-        _playercells.clear();
-    }
+    std::shuffle(&RGB[0], &RGB[3], std::random_device{});
+    return { RGB[0], RGB[2], RGB[1] };
 }
