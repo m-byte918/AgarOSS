@@ -1,64 +1,60 @@
 #pragma once
-#include "../Modules/Utils.h"
+
+#include "EntityHandler.h"
 
 class Entity {
-public:
-    // Getters
-    const int getId() const;
-    const float getSize() const;
-    const float getMass() const;
-    const Color getColor() const;
-    const Position getPosition() const;
-    const float getSquareSize() const;
+    private:
+        double _mass;
+        double _size;
+        double _sizeSquared;
+        Color    _color;
+        Position _position;
+        const unsigned int _nodeId = ++prevNodeId;
 
-    // Setters
-    void setSize(const float &size);
-    void setPosition(const Position& position);
-    void setColor(const Color& color);
+    public:
+        const unsigned int &getNodeId() const;
 
-    // Others
-    bool canEat(const auto &entity) {
-        return std::hypot(
-        _position.x - entity->getPosition().x, 
-        _position.y - entity->getPosition().y) 
-        >= (_size - entity->getSize() / 3);
-    }
-    void operator<<(const float& size);
-    Entity() {};
-    virtual ~Entity() {};
-private:
-    Position _position;                 // Entity coordinates
-    Color    _color;                    // Entity color
-    int      _id = getNextNodeId();     // Entity ID
-    float    _size, _mass, _squareSize; // Entity size, mass and squared size
+        void setPosition(const Position &position);
+        const Position &getPosition() const;
+
+        void setColor(const Color &color);
+        const Color &getColor() const;
+	
+        void setSize(const double &size);
+        const double &getSize() const;
+        const double &getSizeSquared() const;
+        const double &getMass() const;
+
+        Entity();
+        virtual ~Entity();
 };
 
 class Food: public Entity {
-public:
-    Food() {};
-    ~Food() {};
+    public:
+        Food();
+        ~Food();
 };
 
 class Virus: public Entity {
-public:
-    Virus() {};
-    ~Virus() {};
+    public:
+        Virus();
+        ~Virus();
 };
 
 class Ejected: public Entity {
-public:
-    Ejected() {};
-    ~Ejected() {};
+    public:
+        Ejected();
+        ~Ejected();
 };
 
 class MotherCell: public Entity {
-public:
-    MotherCell() {};
-    ~MotherCell() {};
+    public:
+        MotherCell();
+        ~MotherCell();
 };
 
 class PlayerCell: public Entity {
-public:
-    PlayerCell() {};
-    ~PlayerCell() {};
+    public:
+        PlayerCell();
+        ~PlayerCell();
 };
