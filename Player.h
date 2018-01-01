@@ -1,11 +1,24 @@
-#include "./Modules/Utils.h"
-#include "./Entity/Entity.h"
+#pragma once
+
+#include <vector>
+#include <memory>
+#include <uWS/uWS.h>
+
+#include "Utils.h"
+#include "PacketHandler.h"
 
 class Player {
-private:
-    Position    _mouse = { 0, 0 };
-    std::string _name;
-public:
-    PlayerCell *_cell;
-    Player();
+    private:
+        unsigned int _playerId;
+        uWS::WebSocket<uWS::SERVER> *_socket;
+
+    public:
+        Position _mouse = { 0, 0 };
+
+        PacketHandler _packetHandler = PacketHandler();
+
+        Player(uWS::WebSocket<uWS::SERVER> *socket);
+        ~Player();
+
+        void update();
 };
