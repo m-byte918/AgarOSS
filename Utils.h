@@ -5,9 +5,11 @@
 #include <string> // config()
 #include <sstream> // config()
 
+static unsigned int prevPlayerId = 0;
+
 struct Position { 
     double x, y; 
-	
+
     bool operator==(const Position &p) {
         return x == p.x && y == p.y;
     }
