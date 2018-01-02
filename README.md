@@ -1,3 +1,3 @@
-# Agar.io rewrite
+# Rewrite
 
-This is going to be an agario rewrite, and will be released whenever. Stay tuned!
+This is a C++ rewrite of MultiOgar Edited, that will be released sometime in the future.
