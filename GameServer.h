@@ -3,7 +3,6 @@
 #include <iostream>
 #include <vector>
 #include <string>
-
 #include <uWS/uWS.h>
 
 #include "Utils.h"
@@ -18,6 +17,7 @@ class GameServer {
         unsigned long long _tickCount = 0;
 
         void run();
+        void updateFood();
         void onClientConnection();
         void onClientDisconnection();
         void onClientMessage();
