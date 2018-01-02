@@ -1,6 +1,7 @@
 #include <algorithm>
 #include "GameServer.h"
 #include "Player.h"
+#include "Entity/Entity.h"
 
 GameServer::GameServer() { 
     logger.start();
@@ -14,7 +15,7 @@ GameServer::GameServer() {
         halfWidth,
         halfHeight
     };
-	
+
     // Start timerLoop
     _timerLoop = new Timer(_hub.getLoop());
 
@@ -36,18 +37,33 @@ GameServer::~GameServer() {
 
 void GameServer::run() {
     ++_tickCount;
-	
+    updateFood();
+    
     for (const auto &client : _clients) {
         Player *player = (Player*)client->getUserData();
-        player->update();
+        //player->update();
+    }
+}
+
+
+void GameServer::updateFood() {
+    while (_foods.size() < config<unsigned int>("foodStartAmount")) {
+        Food *food = new Food();
+        _foods.push_back(food);
     }
 }
 
 void GameServer::onClientConnection() {
     _hub.onConnection([&](uWS::WebSocket<uWS::SERVER> *ws, uWS::HttpRequest req) {
-    if (ws->getFd() == 7) return;
+        if (ws->getFd() == 7) return; // server
+
+        if (_serverConnections >= config<unsigned int>("maxConnections")) {
+            ws->close(1000, "Server connection limit reached");
+            return;
+        }
 
         Player *player = new Player(ws);
+        player->_owner = this;
         ws->setUserData(player);
 
         _clients.push_back(ws);
@@ -58,7 +74,10 @@ void GameServer::onClientConnection() {
 }
 void GameServer::onClientDisconnection() {
     _hub.onDisconnection([&](uWS::WebSocket<uWS::SERVER> *ws, int code, char *message, size_t length) {
-        delete (Player*)ws->getUserData();
+        Player *player = (Player*)ws->getUserData();
+        player->setState(PlayerState::DISCONNECTED);
+
+        delete player;
         _clients.erase(std::remove(_clients.begin(), _clients.end(), ws), _clients.end());
 
         logger.debug("Disconnection made");
@@ -72,13 +91,13 @@ void GameServer::onClientMessage() {
 
         if (length > 256) {
             ws->close(1009, "no spam pls");
+            return;
         }
 
-        std::string msg(message, length);
-        std::vector<unsigned char> packet(msg.begin(), msg.end());
+        std::vector<unsigned char> packet(message, message + length);
 
-        Player *userData = (Player*)ws->getUserData();
-        userData->_packetHandler.recievePacket(packet);
+        Player *player = (Player*)ws->getUserData();
+        player->_packet.onPacket(packet);
     });
 }
 void GameServer::onServerSocketError() {
