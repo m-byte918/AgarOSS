@@ -37,6 +37,12 @@ const double &Entity::getMass() const {
     return _mass;
 }
 
+Entity::Entity(const double &size, const Color &color, const Position &position) {
+    setSize(size);
+    setColor(color);
+    setPosition(position);
+}
+
 Entity::Entity() {
 
 }
@@ -54,13 +60,15 @@ Food::Food() {
 }
 
 Food::~Food() {
-	
+    
 }
 
 /********* VIRUS *********/
 
 Virus::Virus() {
-
+    setColor({ 0x33, 0xff, 0x33 });
+    setPosition(getRandomPosition());
+    setSize(config<double>("virusStartSize"));
 }
 
 Virus::~Virus() {
@@ -69,8 +77,10 @@ Virus::~Virus() {
 
 /********* EJECTED *********/
 
-Ejected::Ejected() {
-	
+Ejected::Ejected(const Color &color, const Position &position) {
+    setColor(color);
+    setPosition(position);
+    setSize(config<double>("ejectedStartSize"));
 }
 
 Ejected::~Ejected() {
@@ -80,7 +90,9 @@ Ejected::~Ejected() {
 /********* MOTHERCELL *********/
 
 MotherCell::MotherCell() {
-
+    setColor({ 0xce, 0x63, 0x63 });
+    setPosition(getRandomPosition());
+    setSize(config<double>("motherCellStartSize"));
 }
 
 MotherCell::~MotherCell() {
@@ -90,7 +102,9 @@ MotherCell::~MotherCell() {
 /********* PLAYERCELL *********/
 
 PlayerCell::PlayerCell() {
-
+    setColor(getRandomColor());
+    setPosition(getRandomPosition());
+    setSize(config<double>("playerCellStartSize"));
 }
 
 PlayerCell::~PlayerCell() {
