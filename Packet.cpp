@@ -1,17 +1,16 @@
-#include "PacketHandler.h"
-#include "GameServer.h"
+#include "Packet.h"
 
-PacketHandler::PacketHandler() {
+Packet::Packet() {
 
 }
 
-void PacketHandler::sendPacket(std::vector<unsigned char> &packet) {
-    _socket->send(reinterpret_cast<const char *>(packet.data()), packet.size(), uWS::BINARY);
+void Packet::sendPacket(std::vector<unsigned char> &packet) {
+    _player->_socket->send(reinterpret_cast<const char *>(packet.data()), packet.size(), uWS::BINARY);
 }
 
 // Packets
 // reference for latest protocol: https://github.com/NuclearC/agar.io-protocol/
-void PacketHandler::sendPkt_updateNodes() {
+void Packet::sendUpdateNodes() {
     /* 
     --Description--
     updateNodesPkt: { 
@@ -90,21 +89,21 @@ void PacketHandler::sendPkt_updateNodes() {
         removeRecord: { uint32 }
     }*/
 
-    _writer.clearBuffer();
-    _writer.writeUInt8_LE(0x10);
-	
     // Test for food
-    _writer.writeUInt16_LE(0); // eatRecord
-	
     for (int i = 0; i < _foods.size(); ++i) {
         Food *food = _foods[i];
+        _writer.clearBuffer();
+        _writer.writeUInt8_LE(0x10);
+        _writer.writeUInt16_LE(0); // eatRecord
         _writer.writeUInt32_LE(food->getNodeId()); // nodeId
         _writer.writeInt32_LE((int)food->getPosition().x); // x
         _writer.writeInt32_LE((int)food->getPosition().y); // y
         _writer.writeUInt16_LE((unsigned short)food->getSize()); // radius
 
-        unsigned char flags = 0x80; // extendedFlags
-        _writer.writeUInt8_LE(0x80); // flags
+        unsigned char flags = 0; // extendedFlags
+        flags |= 0x02; // has color
+        flags |= 0x80; // extended flags
+        _writer.writeUInt8_LE(flags); // flags
 
         if (flags & 0x80)
             _writer.writeUInt8_LE(0x01); // flags2
@@ -114,39 +113,12 @@ void PacketHandler::sendPkt_updateNodes() {
             _writer.writeUInt8_LE(food->getColor().g); // green
             _writer.writeUInt8_LE(food->getColor().b); // blue
         }
+        _writer.writeUInt32_LE(0); // stop updateRecord
+        _writer.writeUInt16_LE(0); // removeRecord
+        sendPacket(_writer.getBuffer());
     }
-    _writer.writeUInt32_LE(0); // stop updateRecord
-
-    _writer.writeUInt16_LE(0); // removeRecord
-	
-    sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_setup() {
-    // TEMPORARY: updateNodes packet, but empty
-    _writer.clearBuffer();
-    _writer.writeUInt8_LE(0x10);
-    _writer.writeUInt16_LE(0); // eatRecord
-    _writer.writeUInt32_LE(0); // stop updateRecord
-    _writer.writeUInt16_LE(0); // removeRecord
-    sendPacket(_writer.getBuffer());
-}
-void PacketHandler::sendPkt_updateViewport(const float &x, const float &y, const float &scale) {
-    /*
-    --Description--
-    updateViewportPkt: {
-        opCode,
-        x,
-        y,
-        scale
-    }
-    --Data Types--
-    updateViewportPkt: {
-        uint8,
-        float,
-        float,
-        float
-    }
-    */
+void Packet::sendUpdateViewport(const float &x, const float &y, const float &scale) {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x11);
     _writer.writeFloat_LE(x);
@@ -154,48 +126,18 @@ void PacketHandler::sendPkt_updateViewport(const float &x, const float &y, const
     _writer.writeFloat_LE(scale);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_clearAll() {
+void Packet::sendClearAll() {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x12);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_addNode(const unsigned int &nodeId) {
-    /*
-    --Description--
-    addNodePkt: {
-        opCode,
-        nodeId
-    }
-    --Data Types--
-    addNodePkt: {
-        uint8,
-        uint32
-    }
-    */
+void Packet::sendAddNode(const unsigned int &nodeId) {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x20);
     _writer.writeUInt32_LE(nodeId);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_leaderboardRgb(const unsigned int &length, const float &r, const float &g, const float &b) {
-    /*
-    --Description--
-    leaderboardRGBPkt: {
-        opCode,
-        length,
-        red,
-        green,
-        blue
-    }
-    --Data Types--
-    leaderboardRGBPkt: {
-        uint8,
-        uint32,
-        float,
-        float,
-        float
-    }
-    */
+void Packet::sendLeaderboardRgb(const unsigned int &length, const float &r, const float &g, const float &b) {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x32);
     _writer.writeUInt32_LE(length);
@@ -204,7 +146,7 @@ void PacketHandler::sendPkt_leaderboardRgb(const unsigned int &length, const flo
     _writer.writeFloat_LE(b);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_leaderboardList() {
+void Packet::sendLeaderboardList() {
     /*
     --Description--
     leaderboardListPkt: {
@@ -245,124 +187,63 @@ void PacketHandler::sendPkt_leaderboardList() {
     _writer.writeUInt8_LE(0x35);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_setBorder(const double &minx, const double &miny, const double &maxx, const double &maxy, const unsigned int &gameMode, const std::string &serverName) {
-    /*
-    --Description--
-    setBorderPkt: {
-        opCode,
-        minx,
-        miny,
-        maxx,
-        maxy,
-        gameMode,
-        serverName
-    }
-    --Data Types--
-    setBorderPkt: {
-        uint8,
-        double,
-        double,
-        double,
-        double,
-        uint32,
-        null_uft8
-    }
-    */
+void Packet::sendSetBorder() {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x40);
-    _writer.writeDouble_LE(minx);
-    _writer.writeDouble_LE(miny);
-    _writer.writeDouble_LE(maxx);
-    _writer.writeDouble_LE(maxy);
-    _writer.writeUInt32_LE(gameMode);
-    _writer.writeStr(serverName);
+    _writer.writeDouble_LE(_player->_owner->_border.minx);
+    _writer.writeDouble_LE(_player->_owner->_border.miny);
+    _writer.writeDouble_LE(_player->_owner->_border.maxx);
+    _writer.writeDouble_LE(_player->_owner->_border.maxy);
+    _writer.writeUInt32_LE(config<unsigned int>("gameMode"));
+    _writer.writeStr(config<std::string>("serverName") + "\0");
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_captchaRequest() {
+void Packet::sendCaptchaRequest() {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x55);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_logIn() {
+void Packet::sendLogIn() {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x67);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_logOut() {
+void Packet::sendLogOut() {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x68);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_playerBanned(const std::string &accountNameOrIp) {
-    /*
-    --Description--
-    playerBannedPkt: {
-        opCode,
-        accountName/ip
-    }
-    --Data Types--
-    playerBannedPkt: {
-        uint8,
-        null_uft8
-    }
-    */
+void Packet::sendPlayerBanned(const std::string &accountNameOrIp) {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x69);
+    _writer.writeStr(accountNameOrIp + "\0");
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_outdatedClient() {
+void Packet::sendOutdatedClient() {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0x80);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_showArrow(const short &x, const short &y, const std::string &playerName) {
-    /*
-    --Description--
-    showArrowPkt: {
-        opCode,
-        x,
-        y,
-        playerName
-    }
-    --Data Types--
-    showArrowPkt: {
-        uint8,
-        int16,
-        int16,
-        null_str8
-    }
-    */
+void Packet::sendShowArrow(const short &x, const short &y, const std::string &playerName) {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0xa0);
     _writer.writeInt16_LE(x);
     _writer.writeInt16_LE(y);
-    _writer.writeStr(playerName);
+    _writer.writeStr(playerName + "\0");
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_removeArrow() {
+void Packet::sendRemoveArrow() {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0xa1);
     sendPacket(_writer.getBuffer());
 }
-void PacketHandler::sendPkt_ping() {
-    /*
-    --Description--
-    pingPkt: {
-        opCode,
-        randomData
-    }
-    --Data Types--
-    pingPkt: {
-        uint8,
-        ???
-    }
-    */
+void Packet::sendPing() {
     _writer.clearBuffer();
     _writer.writeUInt8_LE(0xe2);
     sendPacket(_writer.getBuffer());
 }
 
-void PacketHandler::recievePacket(std::vector<unsigned char> &packet) {
+void Packet::onPacket(std::vector<unsigned char> &packet) {
     BinaryReader reader(packet);
 
     unsigned char opCode = reader.readUInt8_LE();
@@ -371,49 +252,42 @@ void PacketHandler::recievePacket(std::vector<unsigned char> &packet) {
         // Spawn
         case 0x0: {
             std::cout << "Spawn packet recieved.\n";
-            std::cout << "Name: " << reader.readStr(packet.size()) << "\n";
+            onSpawn(reader.readStr());
             break;
         }
 
         // Spectate
         case 0x01: {
             std::cout << "Spectate packet recieved.\n";
+            onSpectate();
             break;
         }
 
         // Set Target
         case 0x10: {
             std::cout << "Set Target packet recieved.\n";
-
-            _target = { 
-                (double)reader.readInt32_LE(), 
-                (double)reader.readInt32_LE()
-            };
-            //std::cout << "X: " << target.x << "\n";
-            //std::cout << "Y: " << target.y << "\n";
+            onTarget({ (double)reader.readInt32_LE(), (double)reader.readInt32_LE() });
             break;
         }
 
         // Split
         case 0x11: {
             std::cout << "Split packet recieved.\n";
-			
-            // test
-            sendPkt_updateNodes();
+            break;
+        }
+
+        // Q key
+        case 0x12: {
+            std::cout << "Q keypress packet recieved.\n";
+            onQkey();
             break;
         }
 
         // Eject Mass
         case 0x15: {
             std::cout << "Eject Mass packet recieved.\n";
-
             // Food test
-            Food food = Food();
-            _foods.push_back(&food);
-            std::cout << "nodeId: " << _foods[food.getNodeId()-1]->getNodeId() << "\n";
-            std::cout << "position: { " << _foods[food.getNodeId()-1]->getPosition().x << ", " << _foods[food.getNodeId()-1]->getPosition().y << " }\n";
-            std::cout << "color: { " << _foods[food.getNodeId()-1]->getColor().r << ", " << _foods[food.getNodeId()-1]->getColor().g << ", " << _foods[food.getNodeId()-1]->getColor().b << " }\n";
-            sendPkt_updateViewport(food.getPosition().x, food.getPosition().y, 0.4);
+            sendUpdateViewport(_player->_mouse.x, _player->_mouse.y, 0.1);
             break;
         }
 
@@ -432,36 +306,63 @@ void PacketHandler::recievePacket(std::vector<unsigned char> &packet) {
         // Establish Connection
         case 0xfe: {
             std::cout << "Establish Connection packet recieved.\n";
-
-            _protocol = reader.readUInt32_LE();
-
-            if (_protocol > 17) {
-                _socket->close(1002, "Unsupported protocol");
-                break;
-            }
-
-            std::cout << "Protocol version: " << _protocol << "\n\n";
+            onConnection(reader.readUInt32_LE());
             break;
         }
 
         // Connection Key
         case 0xff: {
             std::cout << "Connection Key packet recieved.\n";
-
-            int key = reader.readInt32_LE();
-
-            if (key != 0) {
-                _socket->close(1002, "Unaccepted protocol");
-                break;
-            }
-
-            double halfWidth = config<double>("mapWidth") / 2;
-            double halfHeight = config<double>("mapHeight") / 2;
-
-            sendPkt_clearAll();
-            sendPkt_setBorder(-halfWidth, -halfHeight, halfWidth, halfHeight, 0, "MOE\0");
-            sendPkt_setup();
+            onConnectionKey(reader.readInt32_LE());
             break;
         }
     }
+}
+
+void Packet::onSpawn(const std::string &name) {
+    unsigned short maxLen = config<unsigned short>("maxNameLength");
+    std::string skin;
+
+    short skinStart = name.find('<');
+    short skinEnd   = name.find('>');
+
+    if (skinStart != skinEnd && skinStart != -1 && skinEnd != -1)
+        skin = name.substr(skinStart + 1, skinEnd - 1);
+
+    _player->setSkin(skin.substr(0, maxLen));
+    _player->setName(name.substr(skin.size() == 0 ? 0 : skinEnd + 1, maxLen));
+
+    _player->setState(PlayerState::PLAYING);
+}
+void Packet::onSpectate() {
+    _player->setState(PlayerState::SPECTATING);
+}
+void Packet::onTarget(const Position &target) {
+    if (_player->_mouse != target)
+        _player->_mouse = target;
+}
+void Packet::onQkey() {
+    if (_player->getState() == PlayerState::SPECTATING) {
+        _player->setState(PlayerState::FREEROAM);
+    }
+    else if (_player->getState() == PlayerState::FREEROAM) {
+        _player->setState(PlayerState::SPECTATING);
+    }
+}
+void Packet::onConnection(unsigned int protocol) {
+    if (protocol > 17) {
+        _player->_socket->close(1002, "Unsupported protocol");
+        return;
+    }
+    _protocol = protocol;
+    std::cout << "Protocol version: " << _protocol << "\n\n";
+}
+void Packet::onConnectionKey(int key) {
+    if (key != 0) {
+        _player->_socket->close(1002, "Unaccepted protocol");
+        return;
+    }
+    sendClearAll();
+    sendSetBorder();
+    sendUpdateNodes(); // test
 }
