@@ -20,9 +20,17 @@ namespace EntityHandler {
     }
 
     Color getRandomColor() {
-        unsigned char RGB[3] = { 255, 7, (unsigned char)rand(0, 256) };
+        unsigned char RGB[3] = { 
+            255,
+            7, (unsigned char)
+                rand(0, 256) 
+        };
 
         std::shuffle(&RGB[0], &RGB[3], std::random_device{});
-        return { RGB[0], RGB[2], RGB[1] };
+        return { 
+            RGB[0],
+            RGB[2],
+            RGB[1] 
+        };
     }
 }
