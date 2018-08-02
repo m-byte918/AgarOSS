@@ -1,0 +1,18 @@
+﻿  Commands.cpp
+  Entities.cpp
+  Map.cpp
+  Utils.cpp
+  Buffer.cpp
+  QuadTree.cpp
+  PacketHandler.cpp
+  UpdateLeaderboardList.cpp
+  UpdateNodes.cpp
+  Player.cpp
+  Server.cpp
+  Game.cpp
+  main.cpp
+  Logger.cpp
+  Settings.cpp
+  Generating Code...
+     Creating library C:\Users\ASUS\Desktop\OgarCpp\x64\Debug\OgarCpp.lib and object C:\Users\ASUS\Desktop\OgarCpp\x64\Debug\OgarCpp.exp
+  OgarCpp.vcxproj -> C:\Users\ASUS\Desktop\OgarCpp\x64\Debug\OgarCpp.exe
