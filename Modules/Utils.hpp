@@ -61,23 +61,28 @@ struct Color {
     bool operator==(const Color &other);
     bool operator!=(const Color &other);
 };
+// canEat, canBeEatenBy, cannotSpawnNear
+enum CellFlags {
+    nothing = 0x00,
+    food = 0x01,
+    viruses = 0x02,
+    ejected = 0x04,
+    mothercells = 0x08,
+    playercells = 0x10
+};
 
-extern std::vector<std::string> splitStr(const std::string &str);
-
-// nlohmann::json might have deprecated these.
-extern bool isull(const std::string &str);
-extern bool isll(const std::string &str);
+extern std::vector<std::string> splitStr(const std::string &str, char delimiter);
 
 extern inline double rand(double min, double max);
 
 extern inline int rand(int min, int max);
 
-extern inline Color getRandomColor() noexcept;
+extern inline Color randomColor() noexcept;
 
-extern inline Vector2 getRandomPosition() noexcept;
+extern inline Vector2 randomPosition() noexcept;
 
-extern inline double toSize(double mass) noexcept;
-extern inline double toMass(double size) noexcept;
+extern inline double toRadius(double mass) noexcept;
+extern inline double toMass(double radius) noexcept;
 
 } // namespace utils
 

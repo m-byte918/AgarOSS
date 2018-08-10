@@ -46,45 +46,46 @@ const Vector2 &Player::getCenter() const noexcept {
 
 void Player::update() {
     if (state == PlayerState::PLAYING) {
+        updateScale();
         updateViewBox();
         updateVisibleNodes();
     }
 }
 void Player::updateScale() {
-    double totalSize = 0;
+    score = 0; // reset temporarily
     for (Entity *cell : cells)
-        totalSize += cell->getSize();
+        score += cell->getRadius();
 
-    if (totalSize == 0) {
-        score = 0;
+    if (score == 0) {
         scale = config["player"]["minViewBoxScale"];
     } else {
-        score = toMass(totalSize);
-        scale = std::pow(std::min(64 / totalSize, 1.0), 0.4);
+        scale = std::pow(std::min(64 / score, 1.0), 0.4);
+        score = toMass(score);
     }
 }
 void Player::updateCenter() {
     if (cells.empty()) return;
 
     Vector2 total;
-
     for (Entity *cell : cells)
         total += cell->getPosition();
 
-    center = (center + (total / cells.size())) / 2;
+    //center = (center + (total / cells.size())) / 2;
+    center = total / cells.size();
 }
 void Player::updateViewBox() {
     Vector2 baseResolution(config["player"]["viewBoxWidth"], config["player"]["viewBoxHeight"]);
 
-    filteredScale = (9 * filteredScale + std::max(scale, (double)config["player"]["minViewBoxScale"])) / 10;
+    filteredScale = (9 * filteredScale + scale) / 10;
     Vector2 viewPort = baseResolution / filteredScale;
-
+    
     viewBox.update(center.x, center.y, viewPort.x, viewPort.y);
 }
+// wtf
 void Player::updateVisibleNodes() {
     std::vector<Entity*> newVisibleNodes, delNodes, eatNodes, addNodes, updNodes;
 
-    for (Collidable *obj : Map::quadTree.getObjectsInBound(viewBox))
+    for (Collidable *obj : map::quadTree.getObjectsInBound(viewBox))
         newVisibleNodes.push_back(std::any_cast<Entity*>(obj->data));
 
     for (Entity *entity : newVisibleNodes) {
@@ -94,8 +95,10 @@ void Player::updateVisibleNodes() {
             updNodes.push_back(entity);
     }
     for (Entity *entity : visibleNodes) {
-        if (!entity->isRemoved) continue;
-        if (entity->getKillerId() != 0)
+		if (std::find(newVisibleNodes.begin(), newVisibleNodes.end(), entity)
+			!= newVisibleNodes.end() || !entity->isRemoved)
+			continue;
+        if (entity->killerId() != 0)
             eatNodes.push_back(entity);
         delNodes.push_back(entity);
     }
@@ -125,18 +128,20 @@ void Player::onSpawn(std::string &name) noexcept {
     setSkinName(skin.substr(0, (unsigned)config["player"]["maxNameLength"]));
     setCellName(name.substr(skin.size() == 0 ? 0 : skinEnd + 1, (unsigned)config["player"]["maxNameLength"]));
 
-    PlayerCell *firstCell = Map::spawnPlayerCell();
-    cells.push_back(firstCell);
-    firstCell->owner = this;
+    PlayerCell *cell = map::spawn<PlayerCell>(
+        randomPosition(), config["playerCell"]["baseRadius"], randomColor()
+    );
+    cells.push_back(cell);
+    cell->owner = this;
 
     state = PlayerState::PLAYING;
-    mouse = firstCell->getPosition();
+    mouse = cell->getPosition();
     updateScale(); // Initial update
     updateCenter(); // Initial update
     updateViewBox(); // Initial update
     updateVisibleNodes(); // Initial update
     packetHandler.sendPacket(ClearAll());
-    packetHandler.sendPacket(AddNode(firstCell->getNodeId()));
+    packetHandler.sendPacket(AddNode(cell->nodeId()));
 }
 
 void Player::onSpectate() noexcept {
@@ -152,17 +157,11 @@ void Player::onTarget(const Vector2 &target) noexcept {
 
     updateCenter();
 
-    packetHandler.sendPacket(UpdateViewport(center, scale));
+    //packetHandler.sendPacket(UpdateViewport(center, scale));
 }
 void Player::onSplit() noexcept {
     if (state != PlayerState::PLAYING || cells.size() >= (unsigned)config["player"]["maxCells"])
         return;
-    unsigned count = 0;
-    for (Collidable *obj : Map::quadTree.getObjectsInBound(viewBox)) {
-        std::any_cast<Entity*>(obj->data)->setColor({ 0, 0, 0 });
-        ++count;
-    }
-    Logger::print(count);
 }
 void Player::onQKey() noexcept {
     if (state == PlayerState::SPECTATING)

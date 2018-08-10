@@ -2,13 +2,14 @@
 #include <chrono>
 #include "Game.hpp"
 #include "Player.hpp"
+#include "Entities/Map.hpp"
 #include "Modules/Logger.hpp"
 using namespace std::chrono;
 
 Game::Game() {
     Logger::start(); // Start logger
     server.start();  // Start uWS server
-    map.init();      // Initialize map
+    map::init();      // Initialize map
 
     Commands commands(this); // Command handler
 
@@ -48,12 +49,12 @@ void Game::mainLoop() {
         ((Player*)client->getUserData())->update();
 
     // Update entities
-    map.update(++tickCount);
+    map::update(++tickCount);
 }
 
 Game::~Game() {
     server.end(); // Stop uWS server
-    map.clear();  // Clear map
+    map::clear();  // Clear map
 
     // End logger
     Logger::warn("Saving log...");

@@ -12,8 +12,8 @@ UpdateNodes::UpdateNodes(Player *_Player,
     // Eat record
     buffer.writeUInt16_LE(eatNodes.size());
     for (Entity *entity : eatNodes) {
-        buffer.writeUInt32_LE(entity->getKillerId());
-        buffer.writeUInt32_LE(entity->getNodeId());
+        buffer.writeUInt32_LE(entity->killerId());
+        buffer.writeUInt32_LE(entity->nodeId());
     }
 
     // Update record
@@ -26,7 +26,7 @@ UpdateNodes::UpdateNodes(Player *_Player,
     // Remove record
     buffer.writeUInt16_LE(delNodes.size());
     for (Entity *entity : delNodes)
-        buffer.writeUInt32_LE(entity->getNodeId());
+        buffer.writeUInt32_LE(entity->nodeId());
 }
 
 // TODO: implement for protocols < 11
@@ -40,10 +40,10 @@ void UpdateNodes::writeUpdateRecord_6() {
 // TODO: make it so code does not have to be re-used per vector iteration
 void UpdateNodes::writeUpdateRecord_11() {
     for (Entity *entity : addNodes) {
-        buffer.writeUInt32_LE(entity->getNodeId());
+        buffer.writeUInt32_LE(entity->nodeId());
         buffer.writeInt32_LE((int)entity->getPosition().x);
         buffer.writeInt32_LE((int)entity->getPosition().y);
-        buffer.writeUInt16_LE((unsigned short)entity->getSize());
+        buffer.writeUInt16_LE((unsigned short)entity->getRadius());
 
         unsigned char flags = 0; // extendedFlag
 
@@ -51,7 +51,7 @@ void UpdateNodes::writeUpdateRecord_11() {
             flags |= 0x01; // has spikes on outline
         if (true)
             flags |= 0x02; // has color
-        if (entity->cellType == CellType::PLAYERCELL) {
+        if (entity->type == CellType::PLAYERCELL) {
             if (entity->owner->getSkinName() != "")
                 flags |= 0x04;
             if (entity->owner->getCellName() != "")
@@ -59,9 +59,9 @@ void UpdateNodes::writeUpdateRecord_11() {
         }
         if (entity->isAgitated)
             flags |= 0x10;
-        if (entity->cellType == CellType::EJECTED)
+        if (entity->type == CellType::EJECTED)
             flags |= 0x20;
-        if (entity->cellType == CellType::FOOD)
+        if (entity->type == CellType::FOOD)
             flags |= 0x80; // extended flags
         buffer.writeUInt8(flags); // flag
 
@@ -78,22 +78,22 @@ void UpdateNodes::writeUpdateRecord_11() {
             buffer.writeStr(entity->owner->getCellName() + "\0");
     }
     for (Entity *entity : updNodes) {
-        buffer.writeUInt32_LE(entity->getNodeId());
+        buffer.writeUInt32_LE(entity->nodeId());
         buffer.writeInt32_LE((int)entity->getPosition().x);
         buffer.writeInt32_LE((int)entity->getPosition().y);
-        buffer.writeUInt16_LE((unsigned short)entity->getSize());
+        buffer.writeUInt16_LE((unsigned short)entity->getRadius());
 
         unsigned char flags = 0; // extendedFlag
 
         if (entity->isSpiked)
             flags |= 0x01; // virus
-        if (entity->cellType == CellType::PLAYERCELL)
+        if (entity->type == CellType::PLAYERCELL)
             flags |= 0x02; // has color
         if (entity->isAgitated)
             flags |= 0x10;
-        if (entity->cellType == CellType::EJECTED)
+        if (entity->type == CellType::EJECTED)
             flags |= 0x20;
-        if (entity->cellType == CellType::FOOD)
+        if (entity->type == CellType::FOOD)
             flags |= 0x80; // extended flags
         buffer.writeUInt8(flags); // flag
 
@@ -110,7 +110,7 @@ void UpdateNodes::writeUpdateRecord_11() {
 std::string UpdateNodes::toString() {
     Packet::toString();
     ss << "\nEatRecord: {"
-       << "\n    size: " << buffer.readUInt16_LE();
+       << "\n    radius: " << buffer.readUInt16_LE();
 
     for (Entity *e : eatNodes) {
         ss << "\n    -------------"
@@ -127,7 +127,7 @@ std::string UpdateNodes::toString() {
                 << "\n    nodeId: " << buffer.readUInt32_LE()
                 << "\n    positionX: " << buffer.readInt32_LE()
                 << "\n    positionY: " << buffer.readInt32_LE()
-                << "\n    size: " << buffer.readUInt16_LE();
+                << "\n    radius: " << buffer.readUInt16_LE();
 
             unsigned char flags = buffer.readUInt8();
 
@@ -155,7 +155,7 @@ std::string UpdateNodes::toString() {
                 << "\n    nodeId: " << buffer.readUInt32_LE()
                 << "\n    positionX: " << buffer.readInt32_LE()
                 << "\n    positionY: " << buffer.readInt32_LE()
-                << "\n    size: " << buffer.readUInt16_LE();
+                << "\n    radius: " << buffer.readUInt16_LE();
 
             unsigned char flags = buffer.readUInt8();
 
@@ -173,7 +173,7 @@ std::string UpdateNodes::toString() {
     }
     ss << "\nUpdateRecordTerminator: " << buffer.readUInt32_LE()
         << "\nRemoveRecord: {"
-        << "\n    size: " << buffer.readUInt16_LE();
+        << "\n    radius: " << buffer.readUInt16_LE();
 
     for (Entity *e : delNodes)
         ss << "    nodeId: " << buffer.readUInt32_LE();

@@ -1,16 +1,16 @@
-#include "../Game.hpp"
 #include "Commands.hpp"
-#include "../Player.hpp"
+#include "../Game.hpp"
 #include "Logger.hpp"
-#include <locale> // tolower
+#include "../Player.hpp"
+#include "../Entities/Map.hpp"
 
 Commands::Commands(Game *_game):
     game(_game) {
 }
 
-Player *Commands::getPlayer(const std::string &arg) {
-    if (isull(arg))
-        return getPlayerById(std::stoull(arg));
+Player *Commands::getPlayer(const json &arg) {
+    if (arg.is_number_unsigned())
+        return getPlayerById(arg);
     else
         return getPlayerByName(arg);
 }
@@ -32,111 +32,138 @@ Player *Commands::getPlayerByName(const std::string &name) {
 }
 
 void Commands::handleUserInput(std::string &in) {
+    if (in.empty()) return;
     Logger::logMessage(in); // Write input to log
 
+    // Remove all spaces from input
+    in.erase(std::remove_if(in.begin(), in.end(), [](char c) {
+        return c == ' '; 
+    }), in.end());
+
     // Get arguments
-    std::vector<std::string> input = splitStr(in);
-    if (input.empty()) return;
+    std::vector<std::string> args = splitStr(in, '(');
+    std::string name = args[0];
 
-    // Convert first argument to lowercase
-    std::string first = input[0];
-    std::transform(first.begin(), first.end(), first.begin(), ::tolower);
-    
+    if (in == name || args.back().back() != ')') {
+        Logger::warn("Invalid syntax. Try commandName(args)\n");
+        return;
+    }
+    // Extract arguments between parentheses
+    unsigned int s = 0;
+    for (const std::string &arg : args) s += arg.size();
+    args = splitStr(std::string(in.begin() + name.size() + 1, in.begin() + s), ',');
+
+    // Parse newly extracted arguments
+    std::vector<json> parsedArgs;
+    for (const std::string &arg : args) {
+        try {
+            parsedArgs.push_back(json::parse(arg));
+        } catch (std::invalid_argument &e) {
+            Logger::warn(std::string(e.what()) + "\n");
+            return;
+        }
+    }
     // Parse commands
-    if (auto cmd = command[first])
-        (this->*cmd)(input);
-    else
-        Logger::warn("Invalid command. Use 'help' for a list of commands.");
-
+    if (auto cmd = command[name]) {
+        try {
+            (this->*cmd)(parsedArgs);
+        } catch (const char *e) {
+            Logger::warn(e);
+        }
+    } else {
+        Logger::warn("Invalid command. Use 'help()' for a list of commands.");
+    }
     std::cout << '\n';
 }
 
-void Commands::help(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") return;
+void Commands::help(const std::vector<json> &args) {
+    if (!args.empty()) throw "help() takes zero arguments.";
 
-    for (const auto &c : command) {
-        if (auto cmd = command[c.first])
-            (this->*cmd)({ c.first, "help" });
-    }
+    Logger::info("exit() --------------------------------- Stops the game and closes the server.");
+    Logger::info("clearMap() ----------------------------- Clears the map and removes all entities.");
+    Logger::info("playerlist() --------------------------- Prints a list of information for each player.");
+    Logger::info("toRadius(mass) --------------------------Converts provided mass to radius.");
+    Logger::info("toMass(radius) --------------------------Converts provided radius to mass.");
+    Logger::info("getConfig(name = all) ------------------ Prints value of config[name].");
+    Logger::info("setConfig(name, value) ----------------- Sets value of config[name].");
+    Logger::info("getConfig(group, name = all) ----------- Prints value of config[group][name].");
+    Logger::info("setMass(playerid/playername, mass) ----- Sets mass of a player.");
+    Logger::info("setConfig(group, configname, value) ---- Sets value of config[group][name].");
+    Logger::info("spawn(type[, x, y[, mass][, r, g, b]]) - Spawns an entity.");
+    Logger::info("setPosition(playerid/playername, x, y) - Sets position of a player's cells.");
 }
 
-void Commands::exit(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        Logger::info(args[0] + " -- Stops the game and closes the server.");
-        return;
-    }
+void Commands::exit(const std::vector<json> &args) {
+    if (!args.empty()) throw "exit() takes zero arguments.";
     Logger::warn("Closing server...");
     game->running = false;
 }
 
-void Commands::clearmap(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        Logger::info(args[0] + " -- Clears the map and removes all entities.");
-        return;
-    }
-    game->map.clear();
+void Commands::clearMap(const std::vector<json> &args) {
+    if (!args.empty()) throw "clearMap() takes zero arguments.";
+    map::clear();
 }
 
-void Commands::setmass(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        Logger::info(args[0] + " [playerid/playername] [mass] -- Sets mass of a player.");
-        return;
-    }
-    if (args.size() != 3 || !isull(args[2])) {
-        Logger::warn("Invalid arguments. Use 'setmass help' for more information.");
-        return;
-    }
-    Player *player = getPlayer(args[1]);
-
-    if (player == nullptr) {
-        Logger::warn("Player does not exist");
-        return;
-    } else {
-        double size = toSize(std::stod(args[2]));
-        if (size < (double)config["playerCell"]["minSize"]) {
-            Logger::warn("Size cannot be less than playerCellMinSize");
-            return;
-        }
-        for (Entity *cell : player->cells)
-            cell->setSize(size);
-    }
-    Logger::print("Set mass of " + player->getCellName() + " to " + args[2]);
+void Commands::toMass(const std::vector<json> &args) {
+    if (args.size() != 1 || !args[0].is_number_float())
+        throw "Invalid arguments.";
+    Logger::info(utils::toMass(args[0]));
 }
 
-void Commands::setposition(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        Logger::info(args[0] + " [playerid/playername] [X] [Y] -- Sets position of a player's cells.");
-        return;
-    }
-    if (args.size() != 4 || !isull(args[2]) || !isull(args[3])) {
-        Logger::warn("Invalid arguments. Use 'setposition help' for more information.");
-        return;
-    }
-    Player *player = getPlayer(args[1]);
+void Commands::toRadius(const std::vector<json> &args) {
+    if (args.size() != 1 || !args[0].is_number_float())
+        throw "Invalid arguments.";
+    Logger::info(utils::toRadius(args[0]));
+}
 
-    if (player == nullptr) {
-        Logger::warn("Player does not exist");
-        return;
-    } else {
-        double x = std::stod(args[2]);
-        double y = std::stod(args[3]);
-        Rect bounds = Map::getBounds();
+void Commands::setMass(const std::vector<json> &args) {
+    if (args.size() != 2 || 
+        (!args[0].is_number_unsigned() && !args[0].is_string()) || 
+        !args[1].is_number_unsigned()) throw "Invalid arguments.";
 
-        if (x < bounds.left() || x > bounds.right() || y < bounds.bottom() || y > bounds.top()) {
-            Logger::warn("Position is out of bounds.");
-            return;
-        }
-        for (Entity *cell : player->cells)
-            cell->setPosition({ x, y });
-    }
+    Player *player = getPlayer(args[0]);
+
+    if (player == nullptr)
+        throw "Player does not exist.";
+    if (player->getState() != PlayerState::PLAYING)
+        throw "Player is not in-game.";
+
+    double radius = utils::toRadius(args[1]);
+
+    if (radius < (double)config["playerCell"]["baseRadius"])
+        throw "Size cannot be less than playerCell's base radius.";
+
+    for (Entity *cell : player->cells)
+        cell->setRadius(radius);
+    Logger::print("Set mass of " + player->getCellName() + " to " + args[1].dump());
+}
+
+void Commands::setPosition(const std::vector<json> &args) {
+    if (args.size() != 3 || (!args[0].is_number_unsigned() && !args[0].is_string())
+       || !args[1].is_number() || !args[2].is_number()) throw "Invalid arguments.";
+
+    Player *player = getPlayer(args[0]);
+
+    if (player == nullptr)
+        throw "Player does not exist.";
+    if (player->getState() != PlayerState::PLAYING)
+        throw "Player is not in-game.";
+
+    double x = args[1];
+    double y = args[2];
+    Rect bounds = map::getBounds();
+
+    if (x < bounds.left() || x > bounds.right() || y < bounds.bottom() || y > bounds.top())
+        throw "Position is out of bounds.";
+
+    for (Entity *cell : player->cells)
+        cell->setPosition({ x, y });
     Logger::print("Set position of " + player->getCellName() + " to " + player->getCenter());
 }
 
-void Commands::playerlist(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        Logger::info(args[0] + " -- Prints a list of information for each player.");
-        return;
-    }
+void Commands::playerlist(const std::vector<json> &args) {
+    if (!args.empty()) throw "playerlist() takes zero arguments.";
+
     if (game->server.clients.empty()) {
         Logger::warn("No players are connected to the server.");
         return;
@@ -228,120 +255,116 @@ void discardCopiedValue(const std::string &arg1, const std::string &arg2) {
     }
 }
 
-void Commands::get(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        Logger::info(args[0] + " [configname/all]     -- Prints value of the specified config."
-                "\n              [group] [configname] -- Prints value of the specified config.");
-        return;
-    }
-    if (args.size() < 2 || args.size() > 3) {
-        Logger::warn("Invalid arguments. Use 'get help' for more information.");
-        return;
-    }
-    if (args[1] == "all") {
+void Commands::getConfig(const std::vector<json> &args) {
+    if (args.size() > 2) throw "Invalid arguments.";
+
+    if (args.empty()) {
         Logger::info(config.dump(4));
         return;
     }
-    auto val = args.size() == 2 ? config[args[1]] : config[args[1]][args[2]];
 
-    if (!val.is_null())
-        Logger::info(val.dump(4));
-    else
-        discardCopiedValue(args[1], args.size() == 2 ? "" : args[2]);
+    json::value_type val;
+    std::string group;
+
+    if (args.size() == 1) {
+        if (!args[0].is_string()) throw "Invalid arguments.";
+        val = config[args[0].get<std::string>()];
+        group = "";
+    } else {
+        if (!args[1].is_string()) throw "Invalid arguments.";
+        val = config[args[0].get<std::string>()][args[1].get<std::string>()];
+        group = args[1];
+    }
+    if (!val.is_null()) Logger::info(val.dump(4));
+    else discardCopiedValue(args[0], group);
 }
 
-void Commands::set(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        Logger::info(args[0] + " [configname] [value]         -- Sets value of the specified config."
-                "\n              [group] [configname] [value] -- Sets value of the specified config.");
+void Commands::setConfig(const std::vector<json> &args) {
+    if (args.size() < 2 || args.size() > 3 || !args[0].is_string()) 
+        throw "Invalid arguments.";
+
+    json::value_type found;
+
+    if (args.size() == 2) {
+        found = config[args[0].get<std::string>()];
+    } else {
+        if (!args[1].is_string()) throw "Invalid arguments.";
+        found = config[args[0].get<std::string>()][args[1].get<std::string>()];
+    }
+    if (found.is_null()) {
+        discardCopiedValue(args[0], args[1]);
         return;
     }
-    if (args.size() < 3 || args.size() > 4) {
-        Logger::warn("Invalid arguments. Use 'set help' for more information.");
-        return;
-    }
-    auto val = args.size() == 3 ? config[args[1]] : config[args[1]][args[2]];
-    if (val.is_null()) {
-        discardCopiedValue(args[1], args[2]);
-        return;
-    }
-    if (val.is_object()) {
+    if (found.is_object()) {
         Logger::warn("Cannot set value of object.");
         return;
     }
-    try {
-        if (args.size() == 3)
-            config[args[1]] = config.parse(args[2]);
-        else
-            config[args[1]][args[2]] = config.parse(args[3]);
-    } catch (...) {
-        Logger::warn("Invalid type.");
-    }
+    if (args.size() == 2)
+        config[args[0].get<std::string>()] = args[1];
+    else
+        config[args[0].get<std::string>()][args[1].get<std::string>()] = args[2];
 }
 
-void Commands::spawn(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        Logger::info(args[0] + " [food/virus/ejected/motherCell] [X][Y] [mass] -- Spawns an entity.");
-        return;
+void Commands::spawn(const std::vector<json> &args) {
+    if (args.size() < 1 || args.size() > 7 || !args[0].is_string())
+        throw "Invalid arguments.";
+    if (args.size() == 2 || args.size() == 5 || args.size() == 6)
+        throw "Invalid arguments length.";
+
+    // Validate entity type
+    std::string type = args[0].get<std::string>();
+    if (type != "food" && type != "virus" && type != "ejected" && type != "motherCell")
+        throw "Invalid entity type. Valid types are food, virus, ejected, and motherCell.";
+
+    // Validate position
+    Vector2 position = randomPosition();
+    if (args.size() >= 3) {
+        if (!args[1].is_number() || !args[2].is_number())
+            throw "Coordinates must be a number.";
+        double x = args[1];
+        double y = args[2];
+        Rect bound = map::getBounds();
+
+        if (x < bound.left() || x > bound.right() || y < bound.bottom() || y > bound.top())
+            throw "Position is out of bounds.";
+
+        position = { x, y };
     }
-    if (args.size() < 2 || args.size() > 5 || args.size() == 3) {
-        invalidArgs: 
-        Logger::warn("Invalid arguments. Use 'spawn help' for more information.");
-        return;
+    // Validate radius
+    double radius = config[type]["baseRadius"];
+    if (args.size() >= 4) {
+        if (!args[3].is_number_unsigned())
+            throw "Mass must be an unsigned number.";
+        radius = std::max(utils::toRadius(args[3]), radius);
     }
+    // Validate color
+    Color color = type == "virus" || type == "motherCell" ? config[type]["color"] : randomColor();
+    if (args.size() > 4 && args.size() < 8) {
+        if (!args[4].is_number_unsigned() || !args[5].is_number_unsigned() ||
+            !args[6].is_number_unsigned()) throw "Color values must be an unsigned number.";
+        if ((unsigned)args[4] > 255 || (unsigned)args[5] > 255 || (unsigned)args[6] > 255)
+            throw "Color values must range from 0 to 255.";
+        color = { args[4], args[5], args[6] };
+    }
+    // Spawn entity with valid attributes
     Entity *entity;
-    if (args[1] == "food") entity = Map::spawnFood();
-    else if (args[1] == "virus") entity = Map::spawnVirus();
-    else if (args[1] == "ejected") entity = Map::spawnEjected();
-    else if (args[1] == "motherCell") entity = Map::spawnMotherCell();
-    else goto invalidArgs;
+    if (args[0] == "food") entity = map::spawn<Food>(position, radius, color);
+    else if (args[0] == "virus") entity = map::spawn<Virus>(position, radius, color);
+    else if (args[0] == "ejected") entity = map::spawn<Ejected>(position, radius, color);
+    else entity = map::spawn<MotherCell>(position, radius, color);
 
-    if (args.size() > 2) {
-        nlohmann::json x, y, mass;
-        try {
-            x = nlohmann::json::parse(args[2]);
-            y = nlohmann::json::parse(args[3]);
-            if (args.size() == 5)
-                mass = nlohmann::json::parse(args[4]);
-        } catch (...) {
-            goto invalidArgs;
-        }
-        Vector2 position;
-        if (!x.is_number() || !y.is_number()) {
-            Logger::warn("Invalid coordinates, using default instead.");
-            position = entity->getPosition();
-        } else {
-            position = { x, y };
-        }
-        Rect bound = Map::getBounds();
-
-        if (position.x < bound.left() || position.x > bound.right() ||
-            position.y < bound.bottom() || position.y > bound.top()) {
-            Logger::warn("Position is out of bounds, using default instead.");
-            position = entity->getPosition();
-        }
-        entity->setPosition(position);
-
-        if (args.size() == 5) {
-            if (mass.is_number()) {
-                double size = toSize(mass);
-                size = std::max(size, config[args[1]]["startSize"].get<double>());
-                entity->setSize(size);
-            } else {
-                Logger::warn("Invalid mass, using default instead.");
-            }
-        }
-    }
-    Logger::info("Spawned " + args[1] + " at " + entity->getPosition() 
-        + " with a mass of " + std::to_string((unsigned)entity->getMass()));
+    Color c = entity->getColor();
+    Logger::info("Spawned " + type + " at " + entity->getPosition() + 
+        " with a mass of " + std::to_string((unsigned)entity->getMass()) + 
+        " and a color of { " + std::to_string(c.r) + ", " + 
+        std::to_string(c.g) + ", " + std::to_string(c.b) + " }");
 }
 
-void Commands::debug(const std::vector<std::string> &args) {
-    if (args.size() > 1 && args[1] == "help") {
-        return;
-    }
-
-    Logger::print(2);
+void Commands::debug(const std::vector<json> &args) {
+    double r1 = args[0];
+    double r2 = args[1];
+    Logger::print(r1 + (r2 * -0.4));
+    Logger::print(r1 - 0.4 * r2);
 }
 
 Commands::~Commands() {

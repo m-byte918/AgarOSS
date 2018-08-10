@@ -6,10 +6,10 @@ public:
     SetBorder() {
         buffer.writeUInt8(0x40);
 
-        buffer.writeDouble_LE(Map::getBounds().left());
-        buffer.writeDouble_LE(Map::getBounds().bottom());
-        buffer.writeDouble_LE(Map::getBounds().right());
-        buffer.writeDouble_LE(Map::getBounds().top());
+        buffer.writeDouble_LE(map::getBounds().left());
+        buffer.writeDouble_LE(map::getBounds().bottom());
+        buffer.writeDouble_LE(map::getBounds().right());
+        buffer.writeDouble_LE(map::getBounds().top());
         buffer.writeUInt32_LE(config["game"]["mode"].get<unsigned>());
         buffer.writeStr(config["server"]["name"].get<std::string>() + "\0");
     }

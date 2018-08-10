@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include "Utils.hpp"
 
 // Forward declarations
 class Game;
@@ -14,35 +15,39 @@ struct Commands {
     void handleUserInput(std::string &in);
 
     // Misc
-    Player *getPlayer(const std::string &arg);
+    Player *getPlayer(const json &arg);
     Player *getPlayerById(unsigned long long id);
     Player *getPlayerByName(const std::string &name);
 
     // Commands
-    void help(const std::vector<std::string> &args);
-    void exit(const std::vector<std::string> &args);
-    void clearmap(const std::vector<std::string> &args);
-    void setmass(const std::vector<std::string> &args);
-    void setposition(const std::vector<std::string> &args);
-    void playerlist(const std::vector<std::string> &args);
-    void get(const std::vector<std::string> &args);
-    void set(const std::vector<std::string> &args);
-    void spawn(const std::vector<std::string> &args);
-    void debug(const std::vector<std::string> &args);
+    void help(const std::vector<json> &args);
+    void exit(const std::vector<json> &args);
+    void clearMap(const std::vector<json> &args);
+    void toMass(const std::vector<json> &args);
+    void toRadius(const std::vector<json> &args);
+    void setMass(const std::vector<json> &args);
+    void setPosition(const std::vector<json> &args);
+    void playerlist(const std::vector<json> &args);
+    void getConfig(const std::vector<json> &args);
+    void setConfig(const std::vector<json> &args);
+    void spawn(const std::vector<json> &args);
+    void debug(const std::vector<json> &args);
 
     ~Commands();
 
 private:
-    std::map<std::string, void(Commands::*)(const std::vector<std::string>&)> command = {
+    std::map<std::string, void(Commands::*)(const std::vector<json>&)> command = {
         { "help", &Commands::help },
         { "exit", &Commands::exit },
         { "stop", &Commands::exit },
-        { "clearmap", &Commands::clearmap },
-        { "setmass", &Commands::setmass },
-        { "setposition", &Commands::setposition },
+        { "clearMap", &Commands::clearMap },
+        { "toMass", &Commands::toMass },
+        { "toRadius", &Commands::toRadius },
+        { "setMass", &Commands::setMass },
+        { "setPosition", &Commands::setPosition },
         { "playerlist", &Commands::playerlist },
-        { "get", &Commands::get },
-        { "set", &Commands::set },
+        { "getConfig", &Commands::getConfig },
+        { "setConfig", &Commands::setConfig },
         { "spawn", &Commands::spawn },
         { "debug", &Commands::debug }
     };

@@ -2,9 +2,9 @@
 #include "../Player.hpp"
 #include "../Modules/Logger.hpp"
 
-QuadTree Map::quadTree;
+namespace map {
 
-std::vector<std::vector<Entity*>> Map::entities{
+std::vector<std::vector<Entity*>> entities {
     std::vector<Food::Entity*>(),
     std::vector<Virus::Entity*>(),
     std::vector<Ejected::Entity*>(),
@@ -12,7 +12,9 @@ std::vector<std::vector<Entity*>> Map::entities{
     std::vector<PlayerCell::Entity*>()
 };
 
-void Map::init() {
+QuadTree quadTree;
+
+void init() {
     Logger::info("Initializing Map...");
 
     quadTree = QuadTree({
@@ -21,53 +23,67 @@ void Map::init() {
         config["game"]["mapWidth"],
         config["game"]["mapHeight"]
     }, config["game"]["quadTreeLeafCapacity"], config["game"]["quadTreeMaxDepth"]);
-    
-    // Spawn starting entities
-    int foodStartAmount = config["food"]["startAmount"];
-    int virusStartAmount = config["virus"]["startAmount"];
 
-    while (entities[CellType::FOOD].size() < foodStartAmount)
-        spawnFood();
-    while (entities[CellType::VIRUS].size() < virusStartAmount)
-        spawnVirus();
+    // Spawn starting food
+    int amount = config["food"]["startAmount"];
+    double radius = config["food"]["baseRadius"];
+    while (entities[CellType::FOOD].size() < amount)
+        spawn<Food>(randomPosition(), radius, randomColor());
+
+    // Spawn starting viruses
+    amount = config["virus"]["startAmount"];
+    radius = config["virus"]["baseRadius"];
+    const Color virusColor = config["virus"]["color"];
+    while (entities[CellType::VIRUS].size() < amount)
+        spawn<Virus>(randomPosition(), radius, virusColor);
 }
 
-const Rect &Map::getBounds() noexcept {
+const Rect &getBounds() noexcept {
     return quadTree.getBounds();
 }
 
-Food *Map::spawnFood(const Vector2 &pos, double size, const Color &color) noexcept {
-    return spawnEntity<Food>(pos, size, color);
-}
+template <typename T>
+T *spawn(Vector2 &pos, double radius, const Color &color) noexcept {
+    T *entity = new T(pos, radius, color); // Initial
+    double wh = radius * 2; // Width/height of circular shape
+    std::vector<Collidable*> found; // Entities within initial bounds
 
-Virus *Map::spawnVirus(const Vector2 &pos, double size, const Color &color) noexcept {
-    return spawnEntity<Virus>(pos, size, color);
-}
-Virus *Map::spawnVirus(double size, const Color &color) noexcept {
-    return spawnEntity<Virus>(getSafePosition(size), size, color);
-}
+    if (entity->avoidSpawningOn == nothing)
+        goto done; // Can spawn near any type, return as-is
+    
+    // Get entities near this one
+    found = quadTree.getObjectsInBound({ pos.x, pos.y, wh, wh });
+    if (found.empty()) goto done; // Safe
 
-Ejected *Map::spawnEjected(const Vector2 &pos, double size, const Color &color) noexcept {
-    return spawnEntity<Ejected>(pos, size, color);
-}
+    // (experimental) attempts=size of the vector the entity belongs to
+    const unsigned attempts = entities[entity->type].size();
 
-MotherCell *Map::spawnMotherCell(const Vector2 &pos, double size, const Color &color) noexcept {
-    return spawnEntity<MotherCell>(pos, size, color);
-}
-MotherCell *Map::spawnMotherCell(double size, const Color &color) noexcept {
-    return spawnEntity<MotherCell>(getSafePosition(size), size, color);
-}
+    // Get safe position
+    for (unsigned i = 0; i < attempts && std::any_of(found.begin(), found.end(), [&](Collidable *obj) {
+        Entity *cell = std::any_cast<Entity*>(obj->data);
+        return (entity->avoidSpawningOn & cell->flag) && cell->intersects(pos, radius);
+    }); ++i) {
+        // Retry
+        pos = randomPosition();
+        found = quadTree.getObjectsInBound({ pos.x, pos.y, wh, wh });
+    }
+    entity->setPosition(pos); // Set cells position to safe one
 
-PlayerCell *Map::spawnPlayerCell(const Vector2 &pos, double size, const Color &color) noexcept {
-    return spawnEntity<PlayerCell>(pos, size, color);
+    done:
+    entity->obj = Collidable({ pos.x, pos.y, wh, wh }, (Entity*)entity);
+    quadTree.insert(&entity->obj); // insert into quadTree
+    entities[entity->type].push_back(entity); // insert into vector of its type
+    return entity;
 }
-PlayerCell *Map::spawnPlayerCell(double size, const Color &color) noexcept {
-    return spawnEntity<PlayerCell>(getSafePosition(size), size, color);
-}
+template Food *spawn<Food>(Vector2 &pos, double radius, const Color &color) noexcept;
+template Virus *spawn<Virus>(Vector2 &pos, double radius, const Color &color) noexcept;
+template Ejected *spawn<Ejected>(Vector2 &pos, double radius, const Color &color) noexcept;
+template PlayerCell *spawn<PlayerCell>(Vector2 &pos, double radius, const Color &color) noexcept;
+template MotherCell *spawn<MotherCell>(Vector2 &pos, double radius, const Color &color) noexcept;
 
-void Map::removeEntity(Entity *entity) {
-    std::vector<Entity*> *vec = &entities[entity->cellType];
-    auto index = std::find(vec->begin(), vec->end(), entity);
+void despawn(Entity *entity) {
+    std::vector<Entity*> *vec = &entities[entity->type];
+    const auto index = std::find(vec->begin(), vec->end(), entity);
 
     if (index == vec->end()) {
         Logger::error("Cannot remove entity that does not exist");
@@ -82,79 +98,52 @@ void Map::removeEntity(Entity *entity) {
     entity = nullptr;*/
 }
 
-void Map::updateObject(Entity *entity) {
-    Rect *bounds = &entity->obj.bound;
-    double size = entity->getSize() * 2;
-    Vector2 newPos = entity->getPosition();
-
-    // Check if size and position are the same as before
-    if (newPos == Vector2(bounds->x(), bounds->y()) && bounds->width() == size) {
-        entity->needsUpdate = false;
-        return;
-    }
-    bounds->update(newPos.x, newPos.y, size, size);
-    quadTree.update(&entity->obj);
-    entity->needsUpdate = true;
-}
-
-void Map::update(unsigned long long tick) {
-    // Update food
-    for (Food::Entity *food : entities[CellType::FOOD]) {
-        updateObject(food);
-    }
-    // Update viruses
-    for (Virus::Entity *virus : entities[CellType::VIRUS]) {
-        updateObject(virus);
+void update(unsigned long long tick) {
+    // Update entities
+    for (std::vector<Entity*> entityVec : entities) {
+        for (Entity *entity : entityVec) {
+            entity->update(tick);
+            updateObject(entity);
+        }
     }
     // Update playercells
     for (PlayerCell::Entity *playerCell : entities[CellType::PLAYERCELL]) {
-        updateObject(playerCell);
-
-        // Update decay once per second
-        if (((tick + 3) % 25) == 0)
-            playerCell->updateDecay();
-
-        // Update collisions (experimental)
+        // Playercells should be the only entities that check for collision
         for (Collidable *obj : quadTree.getObjectsInBound(playerCell->obj.bound)) {
-            Entity *cell = std::any_cast<Entity*>(obj->data);
-            if (!playerCell->intersects(cell)) continue;
-            playerCell->consume(cell);
-            removeEntity(cell);
+            handleCollision(playerCell, std::any_cast<Entity*>(obj->data));
         }
     }
 }
 
-// some notes regarding vanilla servers:
-// viruses seemingly have a set amount of attempts to spawn safely (maybe make this the total amount of playercells?)
-// viruses, mothercells, and playercells are checked for collision with other playercells before spawned, nothing else
-// experimental mode: playercells have 0% chance to spawn inside mothercell
-Vector2 Map::getSafePosition(double size) noexcept {
-    Vector2 pos = getRandomPosition();
-    //size *= 2; // width/height of the circle
-    std::vector<Collidable*> found = quadTree.getObjectsInBound({ pos.x, pos.y, size * 2, size * 2 });
+void updateObject(Entity *entity) {
+    Rect *bounds = &entity->obj.bound;
+    const double radius = entity->getRadius() * 2;
+    const Vector2 newPos = entity->getPosition();
 
-    unsigned attempts = entities[CellType::PLAYERCELL].size();
-
-    for (unsigned i = 0; i < attempts && std::any_of(found.begin(), found.end(), [&](Collidable *obj) {
-        return std::any_cast<PlayerCell::Entity*>(obj->data)->intersects(pos, size);
-    }); ++i) {
-        pos = getRandomPosition();
-        found = quadTree.getObjectsInBound({ pos.x, pos.y, size * 2, size * 2 });
+    // Check if radius and position are the same as before
+    if (newPos == Vector2(bounds->x(), bounds->y()) && bounds->width() == radius) {
+        entity->needsUpdate = false;
+        return;
     }
-    return pos;
+    bounds->update(newPos.x, newPos.y, radius, radius);
+    quadTree.update(&entity->obj);
+    entity->needsUpdate = true;
 }
 
-template <typename T>
-T *Map::spawnEntity(const Vector2 &pos, double size, const Color &color) noexcept {
-    T *entity = new T(pos, size, color);
-    entity->obj = Collidable({ pos.x, pos.y, size * 2, size * 2 }, (Entity*)entity);
-
-    quadTree.insert(&entity->obj);
-    entities[entity->cellType].push_back(entity);
-    return entity;
+void handleCollision(Entity *predator, Entity *prey) {
+    // If predator is smaller, it becomes the prey
+    if (predator->getRadius() <= prey->getRadius() * 1.15) {
+        predator = prey;
+        prey = predator;
+    }
+    // Handle collisions with self
+    if (predator->owner == prey->owner) {
+        return;
+    }
+    predator->consume(prey);
 }
 
-void Map::clear() {
+void clear() {
     Logger::warn("Clearing Map...");
 
     quadTree.clear();
@@ -166,3 +155,5 @@ void Map::clear() {
         entityVec.clear();
     }
 }
+
+} // namespace map
