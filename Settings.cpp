@@ -36,7 +36,7 @@ json config = {
         { "isAgitated", false },
         { "canEat", playercells | mothercells | ejected | viruses | food },
         { "avoidSpawningOn", playercells | viruses | mothercells },
-		{ "speedMultiplier", 1 }
+        { "speedMultiplier", 1 }
     }},
 
     { "food", {
