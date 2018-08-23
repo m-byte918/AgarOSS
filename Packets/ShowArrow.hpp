@@ -3,7 +3,7 @@
 
 class ShowArrow : public Packet {
 public:
-    ShowArrow(const Position &position, const std::string &playerName) {
+    ShowArrow(const Vector2 &position, const std::string &playerName) {
         buffer.writeUInt8(0xa0);
         buffer.writeInt16_LE((short)position.x);
         buffer.writeInt16_LE((short)position.y);

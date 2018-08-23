@@ -1,6 +1,7 @@
 #pragma once
 
-#include <iostream>  // writeTo, setTextColor, setConsoleColor, start
+#include <iostream>  // write, setTextColor, setConsoleColor, start
+#include <mutex>     // write
 #include <string>    // Folder and file names
 #include <fstream>   // Log recording
 #ifdef _WIN32
@@ -14,7 +15,7 @@ public:
     /// \brief Standard console colors
     ////////////////////////////////////////
     enum Color {
-        Black, Blue, Green, Aqua, Red, Purple, Yellow, White, Gray, LightBlue, 
+        Black=0, Blue, Green, Aqua, Red, Purple, Yellow, White, Gray, LightBlue, 
         LightGreen, LightAqua, LightRed, LightPurple, LightYellow, BrightWhite
     };
 
@@ -93,18 +94,20 @@ public:
     /// \brief Writes message with log-level properties to file and/or console
     /// \note Messages will not be written to log if start() was not called previously
     /// \param lvl LogLevel to have its properties added onto message
-    /// \param msg Message to be written
     /// \param toLog Write message to log file?
     /// \param toConsole Write message to console?
+    /// \param Args... Arguments to be written
     /// \see Logger::PRINT, Logger::INFO, Logger::WARN, Logger::ERR, Logger::FATAL, Logger::DEBUG;
     //////////////////////////////////////////////////////////////////////////////////////////////
-    template <class T>
-    static void write(const LogLevel *lvl, const T &msg, bool toLog, bool toConsole) {
+    template<typename ...Args>
+    static void write(const LogLevel *lvl, bool toLog, bool toConsole, Args&&... args) {
+        std::lock_guard<std::mutex> guard(lock); // Prevent race for cout
         std::ios_base::sync_with_stdio(false);
         // Write message to file
         if (toLog && file.is_open() && lvl->writable && (!lvl->enumerable || lvl->severity < maxFileSeverity)) {
             try {
-                file << "[" + dateTimeString(true) + "] " << lvl->prefix << msg << lvl->suffix;
+                file << "[" + dateTimeString(true) + "] " << lvl->prefix;
+                (file << ... << args) << lvl->suffix;
             } catch (...) {
                 file.close();
                 std::cerr << "Error writing to log.\n";
@@ -114,7 +117,8 @@ public:
         if (toConsole && (!lvl->enumerable || lvl->severity < maxSeverity)) {
             // Print colored string
             setTextColor(lvl->fgColor, lvl->bgColor);
-            std::cout << lvl->prefix << msg << lvl->suffix;
+            std::cout << lvl->prefix;
+            (std::cout << ... << args) << lvl->suffix;
             // Reset colors
             #ifdef _WIN32
                 SetConsoleTextAttribute(hOut, csbi.wAttributes);
@@ -126,66 +130,84 @@ public:
 
     /////////////////////////////////////////////////////////////////////////
     /// \brief Writes message + PRINT LogLevel properties to log and console
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::PRINT
     ////////////////////////////////////////////////////////////////////////
-    template <class T> static void print(const T &msg) { write(&PRINT, msg, true, true); }
+    template<typename ...Args> static void print(Args&&... args) { 
+        write(&PRINT, true, true, args...); 
+    }
 
     ////////////////////////////////////////////////////////////////////////
     /// \brief Writes message + INFO LogLevel properties to log and console
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::INFO
     ///////////////////////////////////////////////////////////////////////
-    template <class T> static void info(const T &msg) { write(&INFO, msg, true, true); }
+    template<typename ...Args> static void info(Args&&... args) { 
+        write(&INFO, true, true, args...); 
+    }
 
     ////////////////////////////////////////////////////////////////////////
     /// \brief Writes message + WARN LogLevel properties to log and console
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::WARN
     ///////////////////////////////////////////////////////////////////////
-    template <class T> static void warn(const T &msg) { write(&WARN, msg, true, true); }
+    template<typename ...Args> static void warn(Args&&... args) { 
+        write(&WARN, true, true, args...); 
+    }
 
     ///////////////////////////////////////////////////////////////////////
     /// \brief Writes message + ERR LogLevel properties to log and console
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::ERR
     //////////////////////////////////////////////////////////////////////
-    template <class T> static void error(const T &msg) { write(&ERR, msg, true, true); }
+    template<typename ...Args> static void error(Args&&... args) { 
+        write(&ERR, true, true, args...); 
+    }
 
     /////////////////////////////////////////////////////////////////////////
     /// \brief Writes message + FATAL LogLevel properties to log and console
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::FATAL
     ////////////////////////////////////////////////////////////////////////
-    template <class T> static void fatal(const T &msg) { write(&FATAL, msg, true, true); }
+    template<typename ...Args> static void fatal(Args&&... args) { 
+        write(&FATAL, true, true, args...); 
+    }
 
     /////////////////////////////////////////////////////////////////////////
     /// \brief Writes message + DEBUG LogLevel properties to log and console
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::DEBUG
     ////////////////////////////////////////////////////////////////////////
-    template <class T> static void debug(const T &msg) { write(&DEBUG, msg, true, true); }
+    template<typename ...Args> static void debug(Args&&... args) { 
+        write(&DEBUG, true, true, args...); 
+    }
 
     /////////////////////////////////////////////////////////////
     /// \brief Writes message + PRINT LogLevel properties to log
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::PRINT
     ////////////////////////////////////////////////////////////
-    template <class T> static void logMessage(const T &msg) { write(&PRINT, msg, true, false); }
+    template<typename ...Args> static void logMessage(Args&&... args) { 
+        write(&PRINT, true, false, args...); 
+    }
 
     ///////////////////////////////////////////////////////////
     /// \brief Writes message + ERR LogLevel properties to log
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::ERR
     //////////////////////////////////////////////////////////
-    template <class T> static void logError(const T &msg) { write(&ERR, msg, true, false); }
+    template<typename ...Args> static void logError(Args&&... args) { 
+        write(&ERR, true, false, args...); 
+    }
 
     /////////////////////////////////////////////////////////////
     /// \brief Writes message + DEBUG LogLevel properties to log
-    /// \param msg Message to write
+    /// \param Args... Arguments to write
     /// \see Logger::DEBUG
     ////////////////////////////////////////////////////////////
-    template <class T> static void logDebug(const T &msg) { write(&DEBUG, msg, true, false); }
+    template<typename ...Args> static void logDebug(Args&&... args) { 
+        write(&DEBUG, true, false, args...); 
+    }
 
     ////////////////////////////////////////////////////////////
     /// \brief Sets maximum LogLevel severity for console write
@@ -236,6 +258,10 @@ public:
     ~Logger();
 
 private:
+    // Instances of Logger should not be copied
+    Logger(const Logger&) = delete;
+    Logger &operator=(const Logger&) = delete;
+
     // OS specific variables
     #ifdef _WIN32
         const static HANDLE hOut;
@@ -251,11 +277,11 @@ private:
         static const char *bc[16];
     #endif // _WIN32
 
+    static std::mutex lock;             // Logger::write synchronization across threads 
     static std::string LOG_NAME;        // Name of log file
     static std::string LOG_FLDR;        // Name of log folder
     static std::string LOG_BACKUP_FLDR; // Name of log backups folder
-
-    static std::ofstream file;  // Log file
-    static int maxSeverity;     // Maximum log-level severity for console write
-    static int maxFileSeverity; // Maximum log-level severity for file write
+    static std::ofstream file;          // Log file
+    static int maxSeverity;             // Maximum log-level severity for console write
+    static int maxFileSeverity;         // Maximum log-level severity for file write
 };

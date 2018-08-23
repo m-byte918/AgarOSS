@@ -2,8 +2,8 @@
 #include "../Player.hpp"
 
 UpdateNodes::UpdateNodes(Player *_Player,
-    const std::vector<Entity*> &_EatNodes, const std::vector<Entity*> &_UpdNodes,
-    const std::vector<Entity*> &_DelNodes, const std::vector<Entity*> &_AddNodes) :
+    const std::vector<e_ptr> &_EatNodes, const std::vector<e_ptr> &_UpdNodes,
+    const std::vector<e_ptr> &_DelNodes, const std::vector<e_ptr> &_AddNodes) :
     player(_Player), eatNodes(_EatNodes), updNodes(_UpdNodes),
     delNodes(_DelNodes), addNodes(_AddNodes) {
 
@@ -11,9 +11,9 @@ UpdateNodes::UpdateNodes(Player *_Player,
 
     // Eat record
     buffer.writeUInt16_LE(eatNodes.size());
-    for (Entity *entity : eatNodes) {
+    for (const e_ptr &entity : eatNodes) {
         buffer.writeUInt32_LE(entity->killerId());
-        buffer.writeUInt32_LE(entity->nodeId());
+        buffer.writeUInt32_LE((unsigned)entity->nodeId());
     }
 
     // Update record
@@ -25,8 +25,8 @@ UpdateNodes::UpdateNodes(Player *_Player,
 
     // Remove record
     buffer.writeUInt16_LE(delNodes.size());
-    for (Entity *entity : delNodes)
-        buffer.writeUInt32_LE(entity->nodeId());
+    for (const e_ptr &entity : delNodes)
+        buffer.writeUInt32_LE((unsigned)entity->nodeId());
 }
 
 // TODO: implement for protocols < 11
@@ -39,8 +39,8 @@ void UpdateNodes::writeUpdateRecord_6() {
 
 // TODO: make it so code does not have to be re-used per vector iteration
 void UpdateNodes::writeUpdateRecord_11() {
-    for (Entity *entity : addNodes) {
-        buffer.writeUInt32_LE(entity->nodeId());
+    for (const e_ptr &entity : addNodes) {
+        buffer.writeUInt32_LE((unsigned)entity->nodeId());
         buffer.writeInt32_LE((int)entity->getPosition().x);
         buffer.writeInt32_LE((int)entity->getPosition().y);
         buffer.writeUInt16_LE((unsigned short)entity->getRadius());
@@ -52,9 +52,9 @@ void UpdateNodes::writeUpdateRecord_11() {
         if (true)
             flags |= 0x02; // has color
         if (entity->type == CellType::PLAYERCELL) {
-            if (entity->owner->getSkinName() != "")
+            if (entity->getOwner()->getSkinName() != "")
                 flags |= 0x04;
-            if (entity->owner->getCellName() != "")
+            if (entity->getOwner()->getCellName() != "")
                 flags |= 0x08;
         }
         if (entity->isAgitated)
@@ -73,12 +73,12 @@ void UpdateNodes::writeUpdateRecord_11() {
             buffer.writeUInt8(entity->getColor().b); // blue
         }
         if (flags & 0x04)
-            buffer.writeStr(entity->owner->getSkinName() + "\0");
+            buffer.writeStrNull(entity->getOwner()->getSkinName());
         if (flags & 0x08)
-            buffer.writeStr(entity->owner->getCellName() + "\0");
+            buffer.writeStrNull(entity->getOwner()->getCellName());
     }
-    for (Entity *entity : updNodes) {
-        buffer.writeUInt32_LE(entity->nodeId());
+    for (const e_ptr &entity : updNodes) {
+        buffer.writeUInt32_LE((unsigned)entity->nodeId());
         buffer.writeInt32_LE((int)entity->getPosition().x);
         buffer.writeInt32_LE((int)entity->getPosition().y);
         buffer.writeUInt16_LE((unsigned short)entity->getRadius());
@@ -112,7 +112,7 @@ std::string UpdateNodes::toString() {
     ss << "\nEatRecord: {"
        << "\n    radius: " << buffer.readUInt16_LE();
 
-    for (Entity *e : eatNodes) {
+    for (const e_ptr &e : eatNodes) {
         ss << "\n    -------------"
             << "\n    killerId: " << buffer.readUInt32_LE()
             << "\n    nodeId: " << buffer.readUInt32_LE();
@@ -122,7 +122,7 @@ std::string UpdateNodes::toString() {
     if (!addNodes.empty()) {
         ss << "\nAddRecord: {";
 
-        for (Entity *e : addNodes) {
+        for (const e_ptr &e : addNodes) {
             ss << "\n    ---------------------"
                 << "\n    nodeId: " << buffer.readUInt32_LE()
                 << "\n    positionX: " << buffer.readInt32_LE()
@@ -150,7 +150,7 @@ std::string UpdateNodes::toString() {
     if (!updNodes.empty()) {
         ss << "\nUpdateRecord: {";
 
-        for (Entity *e : updNodes) {
+        for (const e_ptr &e : updNodes) {
             ss << "\n    ---------------------"
                 << "\n    nodeId: " << buffer.readUInt32_LE()
                 << "\n    positionX: " << buffer.readInt32_LE()
@@ -175,7 +175,7 @@ std::string UpdateNodes::toString() {
         << "\nRemoveRecord: {"
         << "\n    radius: " << buffer.readUInt16_LE();
 
-    for (Entity *e : delNodes)
+    for (const e_ptr &e : delNodes)
         ss << "    nodeId: " << buffer.readUInt32_LE();
 
     ss << "\n}";

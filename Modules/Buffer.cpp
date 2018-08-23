@@ -61,6 +61,10 @@ void Buffer::writeBool(bool val) noexcept {
 void Buffer::writeStr(const std::string &str) noexcept {
     for (const unsigned char &s : str) writeInt8(s);
 }
+void Buffer::writeStrNull(const std::string &str) noexcept {
+    writeStr(str);
+    writeInt8(0);
+}
 void Buffer::writeInt8(char val) noexcept {
     writeBytes<char>(val);
 }

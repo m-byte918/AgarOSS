@@ -181,10 +181,10 @@ const char *Logger::fc[16] = { "30","34","32","36","31","35","33","37", "90", "9
 const char *Logger::bc[16] = { "40","44","42","46","41","45","43","47","100","104","102","106","101","105","103","107" };
 #endif
 
+std::mutex Logger::lock;
 std::string Logger::LOG_NAME = "MainLog";
 std::string Logger::LOG_FLDR = "./logs";
 std::string Logger::LOG_BACKUP_FLDR = "./logs/LogBackups";
-
 std::ofstream Logger::file;
 int Logger::maxSeverity = 5;
 int Logger::maxFileSeverity = 5;

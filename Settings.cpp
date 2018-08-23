@@ -28,10 +28,21 @@ json config = {
 
     // to get radius from mass, use toRadius(mass)
 
+    { "entity", {
+        { "decelerationPerTick", 9.5 },
+        { "minAcceleration", 0.95 },
+        { "minEatOverlap", 0.4 },
+        { "minEatSizeMult", 1.15 }
+    }},
+
     { "playerCell", {
-        { "baseRadius", 31.623 },
+        { "baseRadius", 32 },
         { "maxRadius", 1500 },
+        { "minRadiusToSplit", 60 },
+        { "minRadiusToEject", 59.16079783 },
+        { "ejectAngleVariation", 0.2 },
         { "radiusDecayRate", 0.998 },
+        { "initialAcceleration", 780 },
         { "isSpiked", false },
         { "isAgitated", false },
         { "canEat", playercells | mothercells | ejected | viruses | food },
@@ -54,8 +65,9 @@ json config = {
     { "virus", {
         { "baseRadius", 100 },
         { "maxRadius", 141.421356237 },
-        { "startAmount", 50 },
-        { "maxAmount", 50 + 26 },
+        { "startAmount", 52 },
+        { "maxAmount", 78 },
+        { "initialAcceleration", 780 },
         { "isSpiked", true },
         { "isAgitated", false },
         { "canEat", ejected },
@@ -65,8 +77,9 @@ json config = {
 
     { "motherCell", {
         { "baseRadius", 149 },
-        { "maxRadius", 1500 },
+        { "maxRadius", 65535 },
         { "startAmount", 25 },
+        { "maxAmount", 25 },
         { "isSpiked", true },
         { "isAgitated", false },
         { "canEat", playercells | ejected | viruses },
@@ -75,8 +88,10 @@ json config = {
     }},
 
     { "ejected", {
-        { "baseRadius", 36.06 },
-        { "maxRadius", 36.06 },
+        { "baseRadius", 42.4264 },
+        { "maxRadius", 42.4264 },
+        { "efficiency", 80 },
+        { "initialAcceleration", 780 },
         { "isSpiked", false },
         { "isAgitated", false },
         { "canEat", nothing }

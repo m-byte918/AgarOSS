@@ -146,8 +146,8 @@ const std::vector<Collidable*> &QuadTree::getObjectsInBound(const Rect &bound) {
             foundObjects.insert(foundObjects.end(), child->foundObjects.begin(), child->foundObjects.end());
         } else for (QuadTree *leaf : children) {
             if (leaf->bounds.intersects(bound)) {
-                leaf->getObjectsInBound(bound);
-                foundObjects.insert(foundObjects.end(), leaf->foundObjects.begin(), leaf->foundObjects.end());
+                const std::vector<Collidable*> *leafFoundObjects = &leaf->getObjectsInBound(bound);
+                foundObjects.insert(foundObjects.end(), leafFoundObjects->begin(), leafFoundObjects->end());
             }
         }
     }

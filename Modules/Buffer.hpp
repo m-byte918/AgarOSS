@@ -20,6 +20,7 @@ public:
 
     void writeBool(bool) noexcept;
     void writeStr(const std::string&) noexcept;
+    void writeStrNull(const std::string&) noexcept;
     void writeInt8(char) noexcept;
     void writeUInt8(unsigned char) noexcept;
 

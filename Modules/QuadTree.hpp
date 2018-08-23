@@ -50,6 +50,7 @@ private:
     void updateEndpoints() noexcept;
 };
 
+class QuadTree;
 struct Collidable {
     friend class QuadTree;
 public:

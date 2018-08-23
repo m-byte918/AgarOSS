@@ -1,5 +1,5 @@
 #include "Packet.hpp"
-#include "../Entities/Map.hpp"
+#include "../Game/Map.hpp"
 
 class SetBorder : public Packet {
 public:
@@ -10,8 +10,8 @@ public:
         buffer.writeDouble_LE(map::getBounds().bottom());
         buffer.writeDouble_LE(map::getBounds().right());
         buffer.writeDouble_LE(map::getBounds().top());
-        buffer.writeUInt32_LE(config["game"]["mode"].get<unsigned>());
-        buffer.writeStr(config["server"]["name"].get<std::string>() + "\0");
+        buffer.writeUInt32_LE(cfg::game_mode);
+        buffer.writeStr(cfg::server_name + "\0");
     }
     std::string toString() {
         Packet::toString();

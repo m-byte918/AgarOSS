@@ -1,66 +1,36 @@
 #pragma once
-#include <vector>   // splitStr
-#include "json.hpp" // json
+#include "json.hpp"    // json, toRadius, splitStr, smart pointers
+#include <random>      // rand()
+#include "Vector2.hpp" // randomPosition()
 
-// Settings
+// Stuff I dont feel like typing out
 using json = nlohmann::json;
+using e_ptr = std::shared_ptr<class Entity>;
+
+// Constants
+#define MATH_PI 3.141592653589793238462643383279502884L
+#define INV_SQRT_2 1 / std::sqrt(2)
+
+// Externals
 extern json config;
 
 // Utilities
 namespace utils {
 
-struct Vector2 {
-    double x, y;
-
-    Vector2() noexcept;
-    Vector2(double _x, double _y) noexcept;
-    Vector2(const Vector2& other) noexcept;
-
-    double squared() const noexcept;
-    double distance() const noexcept;
-    void operator=(const Vector2 &other) noexcept;
-    void operator=(double val) noexcept;
-    bool operator==(const Vector2 &other) const noexcept;
-    bool operator!=(const Vector2 &other) const noexcept;
-    const Vector2 &operator+=(const Vector2 &other) noexcept;
-    const Vector2 &operator+=(double val) noexcept;
-    const Vector2 &operator-=(const Vector2 &other) noexcept;
-    const Vector2 &operator-=(double val) noexcept;
-    const Vector2 &operator*=(const Vector2 &other) noexcept;
-    const Vector2 &operator*=(double val) noexcept;
-    const Vector2 &operator/=(const Vector2 &other) noexcept;
-    const Vector2 &operator/=(double val) noexcept;
-    Vector2 operator*(const Vector2 &other) const noexcept;
-    Vector2 operator*(double val) const noexcept;
-    Vector2 operator/(const Vector2 &other) const noexcept;
-    Vector2 operator/(double val) const noexcept;
-    Vector2 operator+(const Vector2 &other) const noexcept;
-    Vector2 operator+(double val) const noexcept;
-    Vector2 operator-(const Vector2 &other) const noexcept;
-    Vector2 operator-(double val) const noexcept;
-
-    friend std::ostream &operator<<(std::ostream &os, const Vector2 &other) {
-        os << "{ " << other.x << ", " << other.y << " }";
-        return os;
-    }
-    friend std::string operator+(std::string &str, const Vector2 &other) {
-        return str + "{ " + std::to_string((int)other.x) + ", " + std::to_string((int)other.y) + " }";
-    }
-    friend std::string operator+(const char *str, const Vector2 &other) {
-        return std::string(str) + other;
-    }
-};
 struct Color {
     unsigned char r, g, b;
 
     Color();
-    Color(const json &j);
+    Color(const json::value_type &j);
+    Color(const json &j0, const json &j1, const json &j2);
     Color(unsigned char _r, unsigned char _g, unsigned char _b);
 
-    void operator=(const json &j);
+    std::string toString();
+
     bool operator==(const Color &other);
     bool operator!=(const Color &other);
 };
+
 // canEat, canBeEatenBy, cannotSpawnNear
 enum CellFlags {
     nothing = 0x00,
@@ -73,16 +43,30 @@ enum CellFlags {
 
 extern std::vector<std::string> splitStr(const std::string &str, char delimiter);
 
-extern inline double rand(double min, double max);
+extern Color randomColor() noexcept;
 
-extern inline int rand(int min, int max);
+extern Vector2 randomPosition() noexcept;
 
-extern inline Color randomColor() noexcept;
+extern inline double rand(double min, double max) {
+    std::random_device rd;
+    std::mt19937 eng(rd());
+    std::uniform_real_distribution<> distr(min, max);
+    return distr(eng);
+}
 
-extern inline Vector2 randomPosition() noexcept;
+extern inline int rand(int min, int max) {
+    std::random_device rd;
+    std::mt19937 eng(rd());
+    std::uniform_int_distribution<> distr(min, max);
+    return distr(eng);
+}
 
-extern inline double toRadius(double mass) noexcept;
-extern inline double toMass(double radius) noexcept;
+extern inline double toRadius(double mass) noexcept {
+    return std::sqrt(mass * 100);
+}
+extern inline double toMass(double radius) noexcept {
+    return radius * radius / 100;
+}
 
 } // namespace utils
 

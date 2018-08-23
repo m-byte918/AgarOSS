@@ -1,10 +1,15 @@
 #include "Commands.hpp"
-#include "../Game.hpp"
+#include "../Game/Game.hpp"
 #include "Logger.hpp"
 #include "../Player.hpp"
-#include "../Entities/Map.hpp"
+#include "../Game/Map.hpp"
+#include "../Entities/Food.hpp"
+#include "../Entities/Virus.hpp"
+#include "../Entities/Ejected.hpp"
+#include "../Entities/MotherCell.hpp"
+#include "../Entities/PlayerCell.hpp"
 
-Commands::Commands(Game *_game):
+Commands::Commands(Game *_game) :
     game(_game) {
 }
 
@@ -33,11 +38,11 @@ Player *Commands::getPlayerByName(const std::string &name) {
 
 void Commands::handleUserInput(std::string &in) {
     if (in.empty()) return;
-    Logger::logMessage(in); // Write input to log
+    Logger::logMessage(in + '\n'); // Write input to log
 
-    // Remove all spaces from input
+                                   // Remove all spaces from input
     in.erase(std::remove_if(in.begin(), in.end(), [](char c) {
-        return c == ' '; 
+        return c == ' ';
     }), in.end());
 
     // Get arguments
@@ -73,24 +78,24 @@ void Commands::handleUserInput(std::string &in) {
     } else {
         Logger::warn("Invalid command. Use 'help()' for a list of commands.");
     }
-    std::cout << '\n';
+    Logger::print('\n');
 }
 
 void Commands::help(const std::vector<json> &args) {
     if (!args.empty()) throw "help() takes zero arguments.";
 
-    Logger::info("exit() --------------------------------- Stops the game and closes the server.");
-    Logger::info("clearMap() ----------------------------- Clears the map and removes all entities.");
-    Logger::info("playerlist() --------------------------- Prints a list of information for each player.");
-    Logger::info("toRadius(mass) --------------------------Converts provided mass to radius.");
-    Logger::info("toMass(radius) --------------------------Converts provided radius to mass.");
-    Logger::info("getConfig(name = all) ------------------ Prints value of config[name].");
-    Logger::info("setConfig(name, value) ----------------- Sets value of config[name].");
-    Logger::info("getConfig(group, name = all) ----------- Prints value of config[group][name].");
-    Logger::info("setMass(playerid/playername, mass) ----- Sets mass of a player.");
-    Logger::info("setConfig(group, configname, value) ---- Sets value of config[group][name].");
-    Logger::info("spawn(type[, x, y[, mass][, r, g, b]]) - Spawns an entity.");
-    Logger::info("setPosition(playerid/playername, x, y) - Sets position of a player's cells.");
+    Logger::info("exit() ----------------------------------------- Stops the game and closes the server.");
+    Logger::info("clearMap() ------------------------------------- Clears the map and removes all entities.");
+    Logger::info("playerlist() ----------------------------------- Prints a list of information for each player.");
+    Logger::info("toRadius(mass) ----------------------------------Converts provided mass to radius.");
+    Logger::info("toMass(radius) ----------------------------------Converts provided radius to mass.");
+    Logger::info("getConfig(name = all) -------------------------- Prints value of config[name].");
+    Logger::info("setConfig(name, value) ------------------------- Sets value of config[name].");
+    Logger::info("getConfig(group, name = all) ------------------- Prints value of config[group][name].");
+    Logger::info("setMass(playerid/playername, mass) ------------- Sets mass of a player.");
+    Logger::info("setConfig(group, configname, value) ------------ Sets value of config[group][name].");
+    Logger::info("setPosition(playerid/playername, x, y) --------- Sets position of a player's cells.");
+    Logger::info("spawn(amount, type[, x, y[, mass][, r, g, b]]) - Spawns an entity.");
 }
 
 void Commands::exit(const std::vector<json> &args) {
@@ -117,8 +122,8 @@ void Commands::toRadius(const std::vector<json> &args) {
 }
 
 void Commands::setMass(const std::vector<json> &args) {
-    if (args.size() != 2 || 
-        (!args[0].is_number_unsigned() && !args[0].is_string()) || 
+    if (args.size() != 2 ||
+        (!args[0].is_number_unsigned() && !args[0].is_string()) ||
         !args[1].is_number_unsigned()) throw "Invalid arguments.";
 
     Player *player = getPlayer(args[0]);
@@ -130,17 +135,18 @@ void Commands::setMass(const std::vector<json> &args) {
 
     double radius = utils::toRadius(args[1]);
 
-    if (radius < (double)config["playerCell"]["baseRadius"])
+    if (radius < cfg::playerCell_baseRadius)
         throw "Size cannot be less than playerCell's base radius.";
 
-    for (Entity *cell : player->cells)
+    for (e_ptr cell : player->cells)
         cell->setRadius(radius);
-    Logger::print("Set mass of " + player->getCellName() + " to " + args[1].dump());
+
+    Logger::print("Set mass of " + player->getCellName() + " to " + args[1].dump() + "\n");
 }
 
 void Commands::setPosition(const std::vector<json> &args) {
     if (args.size() != 3 || (!args[0].is_number_unsigned() && !args[0].is_string())
-       || !args[1].is_number() || !args[2].is_number()) throw "Invalid arguments.";
+        || !args[1].is_number() || !args[2].is_number()) throw "Invalid arguments.";
 
     Player *player = getPlayer(args[0]);
 
@@ -156,20 +162,20 @@ void Commands::setPosition(const std::vector<json> &args) {
     if (x < bounds.left() || x > bounds.right() || y < bounds.bottom() || y > bounds.top())
         throw "Position is out of bounds.";
 
-    for (Entity *cell : player->cells)
+    for (e_ptr cell : player->cells)
         cell->setPosition({ x, y });
-    Logger::print("Set position of " + player->getCellName() + " to " + player->getCenter());
+    Logger::print("Set position of " + player->getCellName() + " to "
+        + player->getCenter().toString() + "\n");
 }
 
 void Commands::playerlist(const std::vector<json> &args) {
-    if (!args.empty()) throw "playerlist() takes zero arguments.";
+    if (!args.empty())
+        throw "playerlist() takes zero arguments.";
+    if (game->server.clients.empty())
+        throw "No players are connected to the server.";
 
-    if (game->server.clients.empty()) {
-        Logger::warn("No players are connected to the server.");
-        return;
-    }
     // columns
-    std::vector<std::string> ids, states, protocols, cells, scores, positions, names;
+    std::vector<std::string> ids, states, protocols, cells, scores, centers, names;
 
     // collect information
     for (uWS::WebSocket<uWS::SERVER> *socket : game->server.clients) {
@@ -177,29 +183,18 @@ void Commands::playerlist(const std::vector<json> &args) {
         ids.push_back(std::to_string(player->id));
 
         switch (player->getState()) {
-            case PlayerState::DEAD:
-                states.push_back("DEAD");
-                break;
-            case PlayerState::DISCONNECTED:
-                states.push_back("DISCONNECTED");
-                break;
-            case PlayerState::FREEROAM:
-                states.push_back("FREEROAM");
-                break;
-            case PlayerState::PLAYING:
-                states.push_back("PLAYING");
-                break;
-            case PlayerState::SPECTATING:
-                states.push_back("SPECTATING");
-                break;
+        case PlayerState::DEAD: states.push_back("DEAD"); break;
+        case PlayerState::DISCONNECTED: states.push_back("DISCONNECTED"); break;
+        case PlayerState::FREEROAM: states.push_back("FREEROAM"); break;
+        case PlayerState::PLAYING: states.push_back("PLAYING"); break;
+        case PlayerState::SPECTATING: states.push_back("SPECTATING"); break;
         };
         protocols.push_back(std::to_string(player->protocol));
         cells.push_back(std::to_string(player->cells.size()));
-        scores.push_back(std::to_string(player->getScore()));
-        positions.push_back("" + player->getCenter());
+        scores.push_back(std::to_string((int)player->getScore()));
+        centers.push_back(player->getCenter().toString());
         names.push_back(player->getCellName());
     }
-
     // sort strings by size
     auto compare = [](const std::string& first, const std::string& second) {
         return first.size() < second.size();
@@ -209,39 +204,45 @@ void Commands::playerlist(const std::vector<json> &args) {
     std::sort(protocols.begin(), protocols.end(), compare);
     std::sort(cells.begin(), cells.end(), compare);
     std::sort(scores.begin(), scores.end(), compare);
-    std::sort(positions.begin(), positions.end(), compare);
+    std::sort(centers.begin(), centers.end(), compare);
     std::sort(names.begin(), names.end(), compare);
+    unsigned int idSize = ids.back().size();
+    unsigned int stateSize = states.back().size();
+    unsigned int protocolSize = protocols.back().size();
+    unsigned int cellSize = cells.back().size();
+    unsigned int scoreSize = scores.back().size();
+    unsigned int centerSize = centers.back().size();
+    unsigned int nameSize = names.back().size();
 
     // print columns + whitespace the size of the largest string to keep
     // the columns neat and organized no matter the length of a single row
-    std::string col1 = "ID" + std::string(ids.back().size(), ' ');
-    std::string col2 = "STATE" + std::string(states.back().size(), ' ');
-    std::string col3 = "P" + std::string(protocols.back().size(), ' ');
-    std::string col4 = "CELLS" + std::string(cells.back().size(), ' ');
-    std::string col5 = "SCORE" + std::string(scores.back().size(), ' ');
-    std::string col6 = "POSITION" + std::string(positions.back().size(), ' ');
-    std::string col7 = "NAME" + std::string(names.back().size(), ' ');
+    std::string ID = "ID" + std::string(idSize       < 2 ? 1 : idSize, ' ');
+    std::string STATE = "STATE" + std::string(stateSize    < 5 ? 1 : stateSize, ' ');
+    std::string P = "P" + std::string(protocolSize < 1 ? 1 : protocolSize, ' ');
+    std::string CELLS = "CELLS" + std::string(cellSize     < 5 ? 1 : cellSize, ' ');
+    std::string SCORE = "SCORE" + std::string(scoreSize    < 5 ? 1 : scoreSize, ' ');
+    std::string CENTER = "POSITION" + std::string(centerSize   < 8 ? 1 : centerSize, ' ');
+    std::string NAME = "NAME" + std::string(nameSize     < 4 ? 1 : nameSize, ' ');
 
-    Logger::print(col1 + "| " + col2 + "| " + col3 + "| " + col4 + "| " + col5 + "| " + col6 + "| " + col7);
-
-    Logger::print(std::string(col1.size() + col2.size() + col3.size() 
-        + col4.size() + col5.size() + col6.size() + col7.size() + 12, '-'));
+    Logger::print(ID + "| " + STATE + "| " + P + "| " + CELLS + "| " + SCORE + "| " + CENTER + "| " + NAME + "\n");
+    Logger::print(std::string(ID.size() + STATE.size() + P.size() + CELLS.size()
+        + SCORE.size() + CENTER.size() + NAME.size() + 12, '-') + "\n");
 
     // print rows
     for (unsigned long long i = 0; i < game->server.clients.size(); ++i) {
-        std::string id = ids[i] + std::string(ids.back().size() + 2 - ids[i].size(), ' ');
-        std::string state = states[i] + std::string(states.back().size() + 7 - states[i].size() - 1, ' ');
-        std::string protocol = protocols[i] + std::string(protocols.back().size() + 3 - protocols[i].size() - 1, ' ');
-        std::string cellCount = cells[i] + std::string(cells.back().size() + 7 - cells[i].size() - 1, ' ');
-        std::string score = scores[i] + std::string(scores.back().size() + 7 - scores[i].size() - 1, ' ');
-        std::string position = positions[i] + std::string(positions.back().size() + 10 - positions[i].size() - 1, ' ');
-        std::string name = names[i] + std::string(names.back().size() + 6 - names[i].size() - 1, ' ');
-
-        Logger::print(id + "|" + state + "|" + protocol + "|" + cellCount + "|" + score + "|" + position + "|" + name);
+        Logger::print(
+            " " + ids[i] + std::string(ID.size() - ids[i].size() - 1, ' ') +
+            "| " + states[i] + std::string(STATE.size() - states[i].size(), ' ') +
+            "| " + protocols[i] + std::string(P.size() - protocols[i].size(), ' ') +
+            "| " + cells[i] + std::string(CELLS.size() - cells[i].size(), ' ') +
+            "| " + scores[i] + std::string(SCORE.size() - scores[i].size(), ' ') +
+            "| " + centers[i] + std::string(CENTER.size() - centers[i].size(), ' ') +
+            "| " + names[i] + std::string(NAME.size() - names[i].size(), ' ') + "\n"
+        );
     }
 }
 
-// Inifficient. Figure out a better way to do this.
+// TODO: Figure out a better way to do this.
 void discardCopiedValue(const std::string &arg1, const std::string &arg2) {
     Logger::warn("Config not found.");
 
@@ -270,17 +271,18 @@ void Commands::getConfig(const std::vector<json> &args) {
         if (!args[0].is_string()) throw "Invalid arguments.";
         val = config[args[0].get<std::string>()];
         group = "";
-    } else {
+    }
+    else {
         if (!args[1].is_string()) throw "Invalid arguments.";
         val = config[args[0].get<std::string>()][args[1].get<std::string>()];
-        group = args[1];
+        group = args[1].get<std::string>();
     }
     if (!val.is_null()) Logger::info(val.dump(4));
     else discardCopiedValue(args[0], group);
 }
 
 void Commands::setConfig(const std::vector<json> &args) {
-    if (args.size() < 2 || args.size() > 3 || !args[0].is_string()) 
+    if (args.size() < 2 || args.size() > 3 || !args[0].is_string())
         throw "Invalid arguments.";
 
     json::value_type found;
@@ -295,34 +297,36 @@ void Commands::setConfig(const std::vector<json> &args) {
         discardCopiedValue(args[0], args[1]);
         return;
     }
-    if (found.is_object()) {
-        Logger::warn("Cannot set value of object.");
-        return;
-    }
+    if (found.is_object())
+        throw "Cannot set value of object.";
+
     if (args.size() == 2)
         config[args[0].get<std::string>()] = args[1];
     else
         config[args[0].get<std::string>()][args[1].get<std::string>()] = args[2];
+
+    game->loadConfig(); // Reload config
 }
 
 void Commands::spawn(const std::vector<json> &args) {
-    if (args.size() < 1 || args.size() > 7 || !args[0].is_string())
+    if (args.size() < 2 || args.size() > 8 || !args[0].is_number_unsigned() || !args[1].is_string())
         throw "Invalid arguments.";
-    if (args.size() == 2 || args.size() == 5 || args.size() == 6)
+    if (args.size() == 3 || args.size() == 6 || args.size() == 7)
         throw "Invalid arguments length.";
 
     // Validate entity type
-    std::string type = args[0].get<std::string>();
+    std::string type = args[1].get<std::string>();
     if (type != "food" && type != "virus" && type != "ejected" && type != "motherCell")
         throw "Invalid entity type. Valid types are food, virus, ejected, and motherCell.";
 
     // Validate position
-    Vector2 position = randomPosition();
-    if (args.size() >= 3) {
-        if (!args[1].is_number() || !args[2].is_number())
+    Vector2 position;
+    bool positionProvided = args.size() >= 4;
+    if (positionProvided) {
+        if (!args[2].is_number() || !args[3].is_number())
             throw "Coordinates must be a number.";
-        double x = args[1];
-        double y = args[2];
+        double x = args[2];
+        double y = args[3];
         Rect bound = map::getBounds();
 
         if (x < bound.left() || x > bound.right() || y < bound.bottom() || y > bound.top())
@@ -332,39 +336,46 @@ void Commands::spawn(const std::vector<json> &args) {
     }
     // Validate radius
     double radius = config[type]["baseRadius"];
-    if (args.size() >= 4) {
-        if (!args[3].is_number_unsigned())
+    if (args.size() >= 5) {
+        if (!args[4].is_number_unsigned())
             throw "Mass must be an unsigned number.";
-        radius = std::max(utils::toRadius(args[3]), radius);
+        radius = std::max(utils::toRadius(args[4]), radius);
     }
     // Validate color
-    Color color = type == "virus" || type == "motherCell" ? config[type]["color"] : randomColor();
-    if (args.size() > 4 && args.size() < 8) {
-        if (!args[4].is_number_unsigned() || !args[5].is_number_unsigned() ||
-            !args[6].is_number_unsigned()) throw "Color values must be an unsigned number.";
-        if ((unsigned)args[4] > 255 || (unsigned)args[5] > 255 || (unsigned)args[6] > 255)
+    Color color;
+    bool colorProvided = args.size() > 5 && args.size() < 9;
+    if (colorProvided) {
+        if (!args[5].is_number_unsigned() || !args[6].is_number_unsigned() ||
+            !args[7].is_number_unsigned()) throw "Color values must be an unsigned number.";
+        if ((unsigned)args[5] > 255 || (unsigned)args[6] > 255 || (unsigned)args[7] > 255)
             throw "Color values must range from 0 to 255.";
-        color = { args[4], args[5], args[6] };
+        color = Color(args[5], args[6], args[7]);
     }
-    // Spawn entity with valid attributes
-    Entity *entity;
-    if (args[0] == "food") entity = map::spawn<Food>(position, radius, color);
-    else if (args[0] == "virus") entity = map::spawn<Virus>(position, radius, color);
-    else if (args[0] == "ejected") entity = map::spawn<Ejected>(position, radius, color);
-    else entity = map::spawn<MotherCell>(position, radius, color);
+    // Spawn entities with valid attributes
+    unsigned int amount = args[0];
+    for (unsigned int i = 0; i < amount; ++i) {
+        if (!positionProvided) position = randomPosition();
+        if (!colorProvided) color = randomColor();
 
-    Color c = entity->getColor();
-    Logger::info("Spawned " + type + " at " + entity->getPosition() + 
-        " with a mass of " + std::to_string((unsigned)entity->getMass()) + 
-        " and a color of { " + std::to_string(c.r) + ", " + 
-        std::to_string(c.g) + ", " + std::to_string(c.b) + " }");
+        if (type == "food") map::spawn<Food>(position, radius, color);
+        else if (type == "virus") map::spawn<Virus>(position, radius, color);
+        else if (type == "ejected") map::spawn<Ejected>(position, radius, color);
+        else map::spawn<MotherCell>(position, radius, color);
+    }
+    std::string positionStr = positionProvided ? position.toString() : "random position";
+    std::string colorStr = colorProvided ? "color of " + color.toString() : "random color";
+    Logger::info("Spawned ", amount, " " + type + " at " + positionStr + " with ",
+        (unsigned)utils::toMass(radius), " mass and a " + colorStr);
 }
 
 void Commands::debug(const std::vector<json> &args) {
-    double r1 = args[0];
-    double r2 = args[1];
-    Logger::print(r1 + (r2 * -0.4));
-    Logger::print(r1 - 0.4 * r2);
+    Logger::info("Food: ", map::entities[CellType::FOOD].size());
+    Logger::info("Viruses: ", map::entities[CellType::VIRUS].size());
+    Logger::info("Ejected: ", map::entities[CellType::EJECTED].size());
+    Logger::info("MotherCells: ", map::entities[CellType::MOTHERCELL].size());
+    Logger::info("PlayerCells: ", map::entities[CellType::PLAYERCELL].size());
+    Logger::info("Total quadTree objects: ", map::quadTree.totalObjects());
+    Logger::info("Total quadTree children: ", map::quadTree.totalChildren());
 }
 
 Commands::~Commands() {

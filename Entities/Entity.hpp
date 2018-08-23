@@ -12,7 +12,7 @@ namespace {
         static const int MOTHERCELL = 3;
         static const int PLAYERCELL = 4;
     };
-    unsigned int prevNodeId = 0;
+    unsigned long long prevNodeId = 0;
 }
 
 class Player;
@@ -22,19 +22,24 @@ public:
     unsigned char flag = nothing; // Group this entity belongs to
     unsigned char canEat = nothing; // Cell types this entity can eat
     unsigned char avoidSpawningOn = nothing; // Cell types to be checked for safe spawn
-    
+
     bool isSpiked    = false; // Cell has spiked on its outline
     bool isAgitated  = false; // Cell has waves on its outline
     bool isRemoved   = false; // Cell was removed from map
     bool needsUpdate = false; // Cell needs updating on client side
 
     Collidable obj; // Object to be inserted into quadTree
-    Player *owner = nullptr; // Player that owns this cell
 
-    const unsigned int &nodeId() const noexcept;
-    const unsigned int &killerId() const noexcept;
+    unsigned long long nodeId() const noexcept;
+    unsigned long long killerId() const noexcept;
 
-    virtual void setPosition(const Vector2 &position) noexcept;
+    void setCreator(unsigned long long id) noexcept;
+    unsigned long long getCreator() const noexcept;
+
+    void setOwner(Player *owner) noexcept;
+    Player *getOwner() const noexcept;
+
+    virtual void setPosition(const Vector2 &position, bool validate = false) noexcept;
     const Vector2 &getPosition() const noexcept;
 
     void setColor(const Color &color) noexcept;
@@ -48,64 +53,34 @@ public:
 
     double radiusSquared() const noexcept;
 
-    virtual void move();
-    virtual void update(unsigned long long tick);
-    virtual void onRemove();
+    void setVelocity(double velocity, double angle) noexcept;
+    void decelerate() noexcept;
 
-    void consume(Entity *prey);
-    bool intersects(Entity *other) const noexcept;
+    bool isAccelerating() const noexcept;
+
+    virtual void move() noexcept;
+    virtual void split(double angle) noexcept;
+    virtual void update(unsigned long long tick) noexcept;
+    virtual void onDespawned() const noexcept;
+    virtual void consume(const e_ptr &prey) noexcept;
+
+    bool intersects(const e_ptr &other) const noexcept;
     bool intersects(const Vector2 &pos, double radius) const noexcept;
 
     Entity(const Vector2&, double radius, const Color&) noexcept;
     virtual ~Entity();
 
-private:
-    const unsigned int _nodeId = ++prevNodeId;
-    unsigned int _killerId = 0;
-
+    Vector2 velocity{ 1, 0 };
 protected:
     double  _mass = 0;
     double  _radius = 0;
+    double  _acceleration = 0;
     Color   _color{ 0, 0, 0 };
     Vector2 _position{ 0, 0 };
-};
 
-class Food : public Entity {
-public:
-    Food(const Vector2&, double radius, const Color&) noexcept;
-    void update(unsigned long long tick);
-    void onRemove();
-    ~Food();
-
-private:
-    bool canGrow = config["food"]["canGrow"];
-    double maxRadius = config["food"]["maxRadius"];
-};
-
-class Virus : public Entity {
-public:
-    Virus(const Vector2&, double radius, const Color&) noexcept;
-    void onRemove();
-    ~Virus();
-};
-
-class Ejected : public Entity {
-public:
-    Ejected(const Vector2&, double radius, const Color&) noexcept;
-    ~Ejected();
-};
-
-class MotherCell : public Entity {
-public:
-    MotherCell(const Vector2&, double radius, const Color&) noexcept;
-    void onRemove();
-    ~MotherCell();
-};
-
-class PlayerCell : public Entity {
-public:
-    PlayerCell(const Vector2&, double radius, const Color&) noexcept;
-    void move();
-    void update(unsigned long long tick);
-    ~PlayerCell();
+    unsigned long long _nodeId = 0;
+    unsigned long long _killerId = 0;
+    unsigned long long _creatorId = 0;
+    
+    Player *_owner = nullptr; // Player that owns this cell
 };

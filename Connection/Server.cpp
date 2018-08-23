@@ -1,6 +1,7 @@
 #include "Server.hpp"
-#include "Player.hpp"
-#include "Modules/Logger.hpp"
+#include "../Player.hpp"
+#include "../Game/Game.hpp"
+#include "../Modules/Logger.hpp"
 
 void Server::start() {
     Logger::info("Starting uWS Server...");
@@ -10,13 +11,11 @@ void Server::start() {
         onClientDisconnection(&hub);
         onClientMessage(&hub);
 
-        int port = config["server"]["port"];
-
-        if (hub.listen(port)) {
-            Logger::info("Server is listening on port " + std::to_string(port));
+        if (hub.listen(cfg::server_port)) {
+            Logger::info("Server is listening on port ", cfg::server_port);
             hub.run();
         } else {
-            Logger::error("Server couldn't listen on port " + std::to_string(port));
+            Logger::error("Server couldn't listen on port ", cfg::server_port);
             Logger::error("Close out of applications running on the same port or run this with root priveleges.");
             end();
         }
@@ -25,7 +24,7 @@ void Server::start() {
 void Server::onClientConnection(uWS::Hub *hub) {
     hub->onConnection([&](uWS::WebSocket<uWS::SERVER> *ws, uWS::HttpRequest req) {
         clients.push_back(ws);
-        if (++connections >= (unsigned long long)config["server"]["maxConnections"]) {
+        if (++connections >= cfg::server_maxConnections) {
             ws->close(1000, "Server connection limit reached");
             return;
         }
@@ -38,7 +37,7 @@ void Server::onClientConnection(uWS::Hub *hub) {
 void Server::onClientDisconnection(uWS::Hub *hub) {
     hub->onDisconnection([&](uWS::WebSocket<uWS::SERVER> *ws, int code, char *message, size_t length) {
         ((Player*)ws->getUserData())->onDisconnection();
-        clients.erase(std::remove(clients.begin(), clients.end(), ws), clients.end());
+        clients.erase(std::find(clients.begin(), clients.end(), ws));
         ws->setUserData(nullptr);
         --connections;
         Logger::debug("Disconnection made");

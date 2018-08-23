@@ -1,7 +1,6 @@
 #pragma once
-
-#include "Entities/Entities.hpp"
-#include "Packets/PacketHandler.hpp"
+#include "Entities/PlayerCell.hpp"
+#include "Connection/PacketHandler.hpp"
 
 enum struct PlayerState {
     DEAD = 0,
@@ -20,7 +19,7 @@ public:
     unsigned int protocol = 0;
     PacketHandler packetHandler;
     uWS::WebSocket<uWS::SERVER> *socket;
-    std::vector<PlayerCell::Entity*> cells;
+    std::vector<std::shared_ptr<PlayerCell::Entity>> cells;
 
     Player(uWS::WebSocket<uWS::SERVER> *_socket);
 
@@ -40,7 +39,7 @@ public:
     void updateViewBox();
     void updateVisibleNodes();
 
-    void onSpawn(std::string &name) noexcept;
+    void onSpawn(std::string name) noexcept;
     void onSpectate() noexcept;
     void onTarget(const Vector2&) noexcept;
     void onSplit() noexcept;
@@ -62,7 +61,8 @@ private:
     Vector2 center = { 0, 0 };
     Vector2 mouse = { 0, 0 };
 
-    std::vector<Entity*> visibleNodes;
+    // Pair entities with their nodeIds
+    std::map<unsigned long long, e_ptr> visibleNodes;
 
     PlayerState state = PlayerState::DEAD;
 };

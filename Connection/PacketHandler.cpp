@@ -1,18 +1,19 @@
 #include "PacketHandler.hpp"
 #include "../Player.hpp"
+#include "../Game/Game.hpp"
+#include "../Modules/Utils.hpp"
 #include "../Modules/Logger.hpp"
+#include "../Packets/Packet.hpp"
+#include "../Packets/ClearAll.hpp"
+#include "../Packets/SetBorder.hpp"
 
-#include "Packet.hpp"
-#include "ClearAll.hpp"
-#include "SetBorder.hpp"
-
-PacketHandler::PacketHandler(Player *owner):
+PacketHandler::PacketHandler(Player *owner) :
     player(owner) {
 }
 
-void PacketHandler::sendPacket(Packet &packet) const {
+void PacketHandler::sendPacket(const Packet &packet) const {
     const std::vector<unsigned char> &buffer = packet.toBuffer();
-    if (buffer.empty() || player->socket->isClosed())
+    if (buffer.empty() || !player->socket || player->socket->isClosed())
         return;
     player->socket->send(reinterpret_cast<const char *>(buffer.data()), buffer.size(), uWS::BINARY);
 }
@@ -22,40 +23,40 @@ void PacketHandler::onPacket(std::vector<unsigned char> &packet) {
 
     // Process OpCode
     switch ((OpCode)buffer.readUInt8()) {
-        case OpCode::SPAWN:
-            onSpawn(buffer.readStr());
-            break;
-        case OpCode::SPECTATE:
-            onSpectate();
-            break;
-        case OpCode::SET_TARGET:
-            onTarget({ (double)buffer.readInt32_LE(), (double)buffer.readInt32_LE() });
-            break;
-        case OpCode::SPLIT:
-            onSplit();
-            break;
-        case OpCode::QKEY_PRESSED:
-            onQKey();
-            break;
-        case OpCode::EJECT:
-            onEject();
-            break;
-        case OpCode::CAPTCHA_RESPONSE:
-            Logger::info("Captcha Response packet recieved.");
-            break;
-        case OpCode::PONG:
-            Logger::info("Pong packet recieved.");
-            break;
-        case OpCode::ESTABLISH_CONNECTION:
-            onEstablishedConnection(buffer.readUInt32_LE());
-            break;
-        case OpCode::CONNECTION_KEY:
-            onConnectionKey();
-            break;
+    case OpCode::SPAWN:
+        onSpawn(buffer.readStr());
+        break;
+    case OpCode::SPECTATE:
+        onSpectate();
+        break;
+    case OpCode::SET_TARGET:
+        onTarget({ (double)buffer.readInt32_LE(), (double)buffer.readInt32_LE() });
+        break;
+    case OpCode::SPLIT:
+        onSplit();
+        break;
+    case OpCode::QKEY_PRESSED:
+        onQKey();
+        break;
+    case OpCode::EJECT:
+        onEject();
+        break;
+    case OpCode::CAPTCHA_RESPONSE:
+        Logger::info("Captcha Response packet recieved.");
+        break;
+    case OpCode::PONG:
+        Logger::info("Pong packet recieved.");
+        break;
+    case OpCode::ESTABLISH_CONNECTION:
+        onEstablishedConnection(buffer.readUInt32_LE());
+        break;
+    case OpCode::CONNECTION_KEY:
+        onConnectionKey();
+        break;
     }
 }
 
-void PacketHandler::onSpawn(std::string &name) const noexcept {
+void PacketHandler::onSpawn(std::string name) const noexcept {
     Logger::info("Spawn packet recieved.");
     player->onSpawn(name);
 }
@@ -83,8 +84,8 @@ void PacketHandler::onEject() const noexcept {
 void PacketHandler::onEstablishedConnection(const unsigned &protocol) const noexcept {
     Logger::info("Establish Connection packet recieved.");
     Logger::info("Protocol version: " + std::to_string(protocol));
-    if (protocol < (int)config["server"]["minSupportedProtocol"] || 
-        protocol > (int)config["server"]["maxSupportedProtocol"]) {
+    if (protocol < cfg::server_minSupportedProtocol ||
+        protocol > cfg::server_maxSupportedProtocol) {
         player->socket->close(1002, "Unsupported protocol");
         return;
     }

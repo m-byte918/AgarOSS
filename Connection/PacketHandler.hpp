@@ -1,10 +1,9 @@
 #pragma once
-
-#include "../Modules/Utils.hpp"
 #include "uWS/uWS.h"
+#include "../Modules/Utils.hpp"
 
 // As of protocol 16
-enum struct OpCode: unsigned char {
+enum struct OpCode : unsigned char {
     SPAWN = 0x0,
     SPECTATE,
     FACEBOOK_DATA = 0x05,
@@ -24,15 +23,15 @@ class Player; // forward declaration
 class Packet; // forward declaration
 class PacketHandler {
 public:
-    Player *player;
+    Player * player;
     PacketHandler(Player *owner);
 
     // Packet sending
-    void sendPacket(Packet&) const;
+    void sendPacket(const Packet&) const;
 
     // Packet recieving
     void onPacket(std::vector<unsigned char>&);
-    void onSpawn(std::string &name) const noexcept;
+    void onSpawn(std::string name) const noexcept;
     void onSpectate() const noexcept;
     void onTarget(const Vector2 &mouse) const noexcept;
     void onSplit() const noexcept;
