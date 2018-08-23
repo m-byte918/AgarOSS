@@ -1,6 +1,7 @@
 # Changelog
 
 ### v3.7
+- Added support for linux (please note that running this on Linux is still buggy) 
 - Fixed invalid `UpdateNodes` packet being sent and added `writeStrNull()` method to Buffer class, thanks to @B0RYS :)
 - Reorganized where files are placed
 - Added variadic arguments to logging methods
