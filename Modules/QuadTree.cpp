@@ -106,11 +106,18 @@ bool QuadTree::insert(Collidable *obj) {
 }
 
 // Removes an object from this quadtree
-bool QuadTree::remove(Collidable *obj) {
-    if (obj->qt == nullptr) return false; // Cannot exist in vector
-    if (obj->qt != this) return obj->qt->remove(obj);
+bool QuadTree::remove(Collidable *obj) noexcept {
+    if (obj->qt == nullptr)
+        return false; // Cannot exist in vector
+    if (obj->qt != this)
+        return obj->qt->remove(obj);
 
-    objects.erase(std::find(objects.begin(), objects.end(), obj));
+    auto index = std::find(objects.begin(), objects.end(), obj);
+
+    if (index == objects.end())
+        return false;
+
+    objects.erase(index);
     obj->qt = nullptr;
     discardEmptyBuckets();
     return true;
@@ -146,8 +153,8 @@ const std::vector<Collidable*> &QuadTree::getObjectsInBound(const Rect &bound) {
             foundObjects.insert(foundObjects.end(), child->foundObjects.begin(), child->foundObjects.end());
         } else for (QuadTree *leaf : children) {
             if (leaf->bounds.intersects(bound)) {
-                const std::vector<Collidable*> *leafFoundObjects = &leaf->getObjectsInBound(bound);
-                foundObjects.insert(foundObjects.end(), leafFoundObjects->begin(), leafFoundObjects->end());
+                const std::vector<Collidable*> &leafFoundObjects = leaf->getObjectsInBound(bound);
+                foundObjects.insert(foundObjects.end(), leafFoundObjects.begin(), leafFoundObjects.end());
             }
         }
     }

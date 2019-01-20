@@ -3,7 +3,7 @@
 #include "../Modules/QuadTree.hpp"
 
 namespace {
-    // using struct instead of enum for use with vector
+    // Using struct instead of enum for use with vector
     // index(s) without having to type cast each time
     struct CellType {
         static const int FOOD = 0;
@@ -12,75 +12,84 @@ namespace {
         static const int MOTHERCELL = 3;
         static const int PLAYERCELL = 4;
     };
-    unsigned long long prevNodeId = 0;
+    unsigned int prevNodeId = 0;
 }
-
+class Game;
 class Player;
+
 class Entity {
 public:
-    int type = -1; // CellType this entity is classified as
-    unsigned char flag = nothing; // Group this entity belongs to
-    unsigned char canEat = nothing; // Cell types this entity can eat
+    // Typing
+    int           type            = -1; // CellType this entity is classified as
+    unsigned char flag            = nothing; // Group this entity belongs to
+    unsigned char canEat          = nothing; // Cell types this entity can eat
     unsigned char avoidSpawningOn = nothing; // Cell types to be checked for safe spawn
 
-    bool isSpiked    = false; // Cell has spiked on its outline
-    bool isAgitated  = false; // Cell has waves on its outline
-    bool isRemoved   = false; // Cell was removed from map
-    bool needsUpdate = false; // Cell needs updating on client side
+    // States
+    bool isSpiked        = false; // Cell has spikes on its outline
+    bool isAgitated      = false; // Cell has waves on its outline
+    bool isRemoved       = false; // Cell was removed from map
+    bool needsUpdate     = true;  // Cell needs updating on client side
+    bool ignoreCollision = false; // Whether or not to ignore collision with self
 
-    Collidable obj; // Object to be inserted into quadTree
+    // Miscc
+    e_ptr shared; // Shared pointer for this entity
+    Collidable obj; // Object to insert into quadTree
 
-    unsigned long long nodeId() const noexcept;
-    unsigned long long killerId() const noexcept;
-
-    void setCreator(unsigned long long id) noexcept;
-    unsigned long long getCreator() const noexcept;
-
+    // Setters
     void setOwner(Player *owner) noexcept;
-    Player *getOwner() const noexcept;
-
-    virtual void setPosition(const Vector2 &position, bool validate = false) noexcept;
-    const Vector2 &getPosition() const noexcept;
-
     void setColor(const Color &color) noexcept;
-    const Color &getColor() const noexcept;
-
-    void setMass(double mass) noexcept;
-    double getMass() const noexcept;
-
-    void setRadius(double radius) noexcept;
-    double getRadius() const noexcept;
-
-    double radiusSquared() const noexcept;
-
+    void setPosition(const Vec2 &position, bool validate = false) noexcept;
     void setVelocity(double velocity, double angle) noexcept;
-    void decelerate() noexcept;
+    void setMass(double mass) noexcept;
+    void setRadius(double radius) noexcept;
+    void setCreator(unsigned int id) noexcept;
+    void setBirthTick(Game *_game) noexcept;
 
-    bool isAccelerating() const noexcept;
+    // Getters
+    Player *owner() const noexcept;
+    const Color &color() const noexcept;
+    const Vec2 &position() const noexcept;
+    const Vec2 &velocity() const noexcept;
+    double mass() const noexcept;
+    double radius() const noexcept;
+    double acceleration() const noexcept;
+    double radiusSquared() const noexcept;
+    unsigned int nodeId() const noexcept;
+    unsigned int creator() const noexcept;
+    unsigned int killerId() const noexcept;
+    unsigned long long age() const noexcept;
 
+    // Misc
+    bool decelerate() noexcept;
+    bool intersects(e_ptr other) const noexcept;
+    bool intersects(const Vec2 &pos, double radius) const noexcept;
     virtual void move() noexcept;
-    virtual void split(double angle) noexcept;
+    virtual void pop() noexcept;
+    virtual void split(double angle, double radius) noexcept;
+    virtual void autoSplit() noexcept;
     virtual void update(unsigned long long tick) noexcept;
     virtual void onDespawned() const noexcept;
-    virtual void consume(const e_ptr &prey) noexcept;
+    virtual void consume(e_ptr &_prey) noexcept;
+    std::string toString() const noexcept;
 
-    bool intersects(const e_ptr &other) const noexcept;
-    bool intersects(const Vector2 &pos, double radius) const noexcept;
-
-    Entity(const Vector2&, double radius, const Color&) noexcept;
+    Entity(const Vec2&, double radius, const Color&) noexcept;
     virtual ~Entity();
 
-    Vector2 velocity{ 1, 0 };
 protected:
-    double  _mass = 0;
-    double  _radius = 0;
-    double  _acceleration = 0;
-    Color   _color{ 0, 0, 0 };
-    Vector2 _position{ 0, 0 };
+    Color _color{ 0, 0, 0 };
+    Vec2  _velocity{ 1, 0 };
+    Vec2  _position{ 0, 0 };
 
-    unsigned long long _nodeId = 0;
-    unsigned long long _killerId = 0;
-    unsigned long long _creatorId = 0;
+    double _mass         = 0;
+    double _radius       = 0;
+    double _acceleration = 0;
+
+    unsigned int      _nodeId    = 0;
+    unsigned int      _killerId  = 0;
+    unsigned int      _creatorId = 0;
+    unsigned long long birthTick = 0;
     
+    Game   *game   = nullptr; // Game this entity belongs to
     Player *_owner = nullptr; // Player that owns this cell
 };

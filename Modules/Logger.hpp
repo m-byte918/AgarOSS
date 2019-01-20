@@ -6,6 +6,10 @@
 #include <fstream>   // Log recording
 #ifdef _WIN32
 #include <Windows.h> // Colors for Windows
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#define logVerbose(msg) Logger::debug(__FILENAME__, "->", __FUNCTION__, "()->L", __LINE__, ": ", #msg)
+#else
+#define logVerbose(msg) Logger::debug(#msg)
 #endif // _WIN32
 
 class Logger {

@@ -64,7 +64,7 @@ extern Color randomColor() noexcept {
     return { RGB[0], RGB[2], RGB[1] };
 }
 
-extern Vector2 randomPosition() noexcept {
+extern Vec2 randomPosition() noexcept {
     double halfWidth = cfg::game_mapWidth * 0.5f;
     double halfHeight = cfg::game_mapHeight * 0.5f;
     return {

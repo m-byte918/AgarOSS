@@ -9,7 +9,7 @@ Buffer::Buffer(const std::vector<unsigned char> &_buffer) noexcept:
     buffer(_buffer) {
 }
 
-void Buffer::setBuffer(std::vector<unsigned char> &_buffer) noexcept {
+void Buffer::setBuffer(const std::vector<unsigned char> &_buffer) noexcept {
     buffer = _buffer;
 }
 const std::vector<unsigned char> &Buffer::getBuffer() const noexcept {
@@ -33,103 +33,104 @@ std::string Buffer::byteStr(bool LE) const noexcept {
         for (unsigned long long i = 0; i < size; ++i)
             byteStr << std::setw(2) << (unsigned short)buffer[size - i - 1] << " ";
     }
-
     return byteStr.str();
 }
 
-template <class T> inline void Buffer::writeBytes(const T &val, bool LE) {
+template <class T> inline Buffer &Buffer::writeBytes(const T &val, bool LE) {
     unsigned int size = sizeof(T);
 
     if (LE == true) {
         for (unsigned int i = 0, mask = 0; i < size; ++i, mask += 8)
-            buffer.push_back(val >> mask);
+            buffer.push_back((unsigned char)(val >> mask));
     } else {
         unsigned const char *array = reinterpret_cast<unsigned const char*>(&val);
         for (unsigned int i = 0; i < size; ++i)
             buffer.push_back(array[size - i - 1]);
     }
     writeOffset += size;
+    return *this;
 }
 
 unsigned long long Buffer::getWriteOffset() const noexcept {
     return writeOffset;
 }
 
-void Buffer::writeBool(bool val) noexcept {
-    writeBytes<bool>(val);
+Buffer &Buffer::writeBool(bool val) noexcept {
+    return writeBytes<bool>(val);
 }
-void Buffer::writeStr(const std::string &str) noexcept {
+Buffer &Buffer::writeStr(const std::string &str) noexcept {
     for (const unsigned char &s : str) writeInt8(s);
+    return *this;
 }
-void Buffer::writeStrNull(const std::string &str) noexcept {
+Buffer &Buffer::writeStrNull(const std::string &str) noexcept {
     writeStr(str);
-    writeInt8(0);
+    return writeInt8(0);
 }
-void Buffer::writeInt8(char val) noexcept {
-    writeBytes<char>(val);
+Buffer &Buffer::writeInt8(char val) noexcept {
+    return writeBytes<char>(val);
 }
-void Buffer::writeUInt8(unsigned char val) noexcept {
-    writeBytes<unsigned char>(val);
-}
-
-void Buffer::writeInt16_LE(short val) noexcept {
-    writeBytes<short>(val);
-}
-void Buffer::writeInt16_BE(short val) noexcept {
-    writeBytes<short>(val, false);
-}
-void Buffer::writeUInt16_LE(unsigned short val) noexcept {
-    writeBytes<unsigned short>(val);
-}
-void Buffer::writeUInt16_BE(unsigned short val) noexcept {
-    writeBytes<unsigned short>(val, false);
+Buffer &Buffer::writeUInt8(unsigned char val) noexcept {
+    return writeBytes<unsigned char>(val);
 }
 
-void Buffer::writeInt32_LE(int val) noexcept {
-    writeBytes<int>(val);
+Buffer &Buffer::writeInt16_LE(short val) noexcept {
+    return writeBytes<short>(val);
 }
-void Buffer::writeInt32_BE(int val) noexcept {
-    writeBytes<int>(val, false);
+Buffer &Buffer::writeInt16_BE(short val) noexcept {
+    return writeBytes<short>(val, false);
 }
-void Buffer::writeUInt32_LE(unsigned int val) noexcept {
-    writeBytes<unsigned int>(val);
+Buffer &Buffer::writeUInt16_LE(unsigned short val) noexcept {
+    return writeBytes<unsigned short>(val);
 }
-void Buffer::writeUInt32_BE(unsigned int val) noexcept {
-    writeBytes<unsigned int>(val, false);
-}
-
-void Buffer::writeInt64_LE(long long val) noexcept {
-    writeBytes<long long>(val);
-}
-void Buffer::writeInt64_BE(long long val) noexcept {
-    writeBytes<long long>(val, false);
-}
-void Buffer::writeUInt64_LE(unsigned long long val) noexcept {
-    writeBytes<unsigned long long>(val);
-}
-void Buffer::writeUInt64_BE(unsigned long long val) noexcept {
-    writeBytes<unsigned long long>(val, false);
+Buffer &Buffer::writeUInt16_BE(unsigned short val) noexcept {
+    return writeBytes<unsigned short>(val, false);
 }
 
-void Buffer::writeFloat_LE(float val) noexcept {
+Buffer &Buffer::writeInt32_LE(int val) noexcept {
+    return writeBytes<int>(val);
+}
+Buffer &Buffer::writeInt32_BE(int val) noexcept {
+    return writeBytes<int>(val, false);
+}
+Buffer &Buffer::writeUInt32_LE(unsigned int val) noexcept {
+    return writeBytes<unsigned int>(val);
+}
+Buffer &Buffer::writeUInt32_BE(unsigned int val) noexcept {
+    return writeBytes<unsigned int>(val, false);
+}
+
+Buffer &Buffer::writeInt64_LE(long long val) noexcept {
+    return writeBytes<long long>(val);
+}
+Buffer &Buffer::writeInt64_BE(long long val) noexcept {
+    return writeBytes<long long>(val, false);
+}
+Buffer &Buffer::writeUInt64_LE(unsigned long long val) noexcept {
+    return writeBytes<unsigned long long>(val);
+}
+Buffer &Buffer::writeUInt64_BE(unsigned long long val) noexcept {
+    return writeBytes<unsigned long long>(val, false);
+}
+
+Buffer &Buffer::writeFloat_LE(float val) noexcept {
     union { float fnum; unsigned inum; } u;
     u.fnum = val;
-    writeUInt32_LE(u.inum);
+    return writeUInt32_LE(u.inum);
 }
-void Buffer::writeFloat_BE(float val) noexcept {
+Buffer &Buffer::writeFloat_BE(float val) noexcept {
     union { float fnum; unsigned inum; } u;
     u.fnum = val;
-    writeUInt32_BE(u.inum);
+    return writeUInt32_BE(u.inum);
 }
-void Buffer::writeDouble_LE(double val) noexcept {
+Buffer &Buffer::writeDouble_LE(double val) noexcept {
     union { double fnum; unsigned long long inum; } u;
     u.fnum = val;
-    writeUInt64_LE(u.inum);
+    return writeUInt64_LE(u.inum);
 }
-void Buffer::writeDouble_BE(double val) noexcept {
+Buffer &Buffer::writeDouble_BE(double val) noexcept {
     union { double fnum; unsigned long long inum; } u;
     u.fnum = val;
-    writeUInt64_BE(u.inum);
+    return writeUInt64_BE(u.inum);
 }
 
 /************************* READING *************************/

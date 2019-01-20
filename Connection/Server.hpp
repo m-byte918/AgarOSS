@@ -4,10 +4,11 @@
 #pragma warning(pop)
 #include <thread>
 
-// might not need a struct for this
+class Player;
 struct Server {
-    std::vector<uWS::WebSocket<uWS::SERVER>*> clients;
+    std::vector<Player*> clients;
     unsigned long long connections = 0;
+    int runningState = -1;
 
     void start();
     void onClientConnection(uWS::Hub *hub);

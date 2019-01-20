@@ -3,7 +3,7 @@
 
 class MotherCell : public Entity {
 public:
-    MotherCell(const Vector2&, double radius, const Color&) noexcept;
+    MotherCell(const Vec2&, double radius, const Color&) noexcept;
     void onDespawned() const noexcept;
     ~MotherCell();
 };

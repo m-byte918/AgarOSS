@@ -2,7 +2,7 @@
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
 
-Virus::Virus(const Vector2 &pos, double radius, const Color &color) noexcept :
+Virus::Virus(const Vec2 &pos, double radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::VIRUS;
 
@@ -13,25 +13,26 @@ Virus::Virus(const Vector2 &pos, double radius, const Color &color) noexcept :
     isSpiked = cfg::virus_isSpiked;
     isAgitated = cfg::virus_isAgitated;
 }
-void Virus::split(double angle) noexcept {
-    // Reset radius from splitting virus
-    setRadius(cfg::virus_baseRadius);
+void Virus::split(double angle, double radius) noexcept {
+    // Set radius of splitting virus
+    setRadius(radius);
 
-    // Spawn new virus at splitting virus's position with base virus radius
-    e_ptr newCell = map::spawn<Virus>(_position, cfg::virus_baseRadius, _color);
+    // Spawn new virus at splitting virus's position with same radius
+    e_ptr newCell = map::spawnUnsafe<Virus>(_position, radius, _color);
     newCell->setVelocity(cfg::virus_initialAcceleration, angle);
-    newCell->setCreator(_nodeId);
+    newCell->setCreator(newCell->nodeId());
 }
 void Virus::onDespawned() const noexcept {
-    // Same thing applies to viruses
-    if (map::entities[CellType::VIRUS].size() < cfg::virus_maxAmount)
+    if (map::entities[type].size() < cfg::virus_startAmount)
         map::spawn<Virus>(randomPosition(), cfg::virus_baseRadius, cfg::virus_color);
 }
-void Virus::consume(const e_ptr &prey) noexcept {
-    Entity::consume(prey);
+void Virus::consume(e_ptr &prey) noexcept {
+    if (map::entities[type].size() >= cfg::virus_maxAmount)
+        return; // Max amount of viruses has been reached
 
+    Entity::consume(prey);
     if (_radius >= cfg::virus_maxRadius)
-        split(prey->velocity.angle());
+        split(prey->velocity().angle(), cfg::virus_baseRadius);
 }
 Virus::~Virus() {
 }

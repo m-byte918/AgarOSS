@@ -20,9 +20,13 @@ struct Commands {
     // Commands
     void help(const std::vector<json> &args);
     void exit(const std::vector<json> &args);
+    void kill(const std::vector<json> &args);
+    void clr(const std::vector<json> &args);
     void clearMap(const std::vector<json> &args);
     void toMass(const std::vector<json> &args);
     void toRadius(const std::vector<json> &args);
+    void pop(const std::vector<json> &args);
+    void merge(const std::vector<json> &args);
     void setMass(const std::vector<json> &args);
     void setPosition(const std::vector<json> &args);
     void playerlist(const std::vector<json> &args);
@@ -38,9 +42,13 @@ private:
         { "help", &Commands::help },
         { "exit", &Commands::exit },
         { "stop", &Commands::exit },
+        { "kill", &Commands::kill },
+        { "clr", &Commands::clr },
         { "clearMap", &Commands::clearMap },
         { "toMass", &Commands::toMass },
         { "toRadius", &Commands::toRadius },
+        { "pop", &Commands::pop },
+        { "merge", &Commands::merge },
         { "setMass", &Commands::setMass },
         { "setPosition", &Commands::setPosition },
         { "playerlist", &Commands::playerlist },

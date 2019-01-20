@@ -2,7 +2,7 @@
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
 
-Food::Food(const Vector2 &pos, double radius, const Color &color) noexcept :
+Food::Food(const Vec2 &pos, double radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::FOOD;
 

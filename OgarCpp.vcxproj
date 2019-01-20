@@ -22,7 +22,7 @@
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{FE95AABC-5FD5-43B1-97CA-32C1C33B95E7}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
     <ProjectName>OgarCpp</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -81,7 +81,7 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <TargetMachine>MachineX86</TargetMachine>
+      <TargetMachine>MachineX64</TargetMachine>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
     </Link>
@@ -94,7 +94,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <TargetMachine>MachineX86</TargetMachine>
+      <TargetMachine>MachineX64</TargetMachine>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -103,6 +103,13 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -120,13 +127,12 @@
     <ClCompile Include="Modules\Utils.cpp" />
     <ClCompile Include="Modules\Buffer.cpp" />
     <ClCompile Include="Modules\QuadTree.cpp" />
-    <ClCompile Include="Modules\Vector2.cpp" />
-    <ClCompile Include="Packets\UpdateLeaderboardList.cpp" />
-    <ClCompile Include="Packets\UpdateNodes.cpp" />
-    <ClCompile Include="Player.cpp" />
+    <ClCompile Include="Modules\Vec2.cpp" />
+    <ClCompile Include="Player\Player.cpp" />
     <ClCompile Include="Game\Game.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="modules\Logger.cpp" />
+    <ClCompile Include="Protocol\Protocol.cpp" />
     <ClCompile Include="Settings.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -145,28 +151,26 @@
     <ClInclude Include="Modules\Buffer.hpp" />
     <ClInclude Include="modules\Logger.hpp" />
     <ClInclude Include="Modules\QuadTree.hpp" />
-    <ClInclude Include="Modules\Vector2.hpp" />
-    <ClInclude Include="Packets\AddNode.hpp" />
-    <ClInclude Include="Packets\BanPlayer.hpp" />
-    <ClInclude Include="Packets\ClearAll.hpp" />
-    <ClInclude Include="Packets\Compressed.hpp" />
-    <ClInclude Include="Packets\DKS2.hpp" />
-    <ClInclude Include="Packets\Login.hpp" />
-    <ClInclude Include="Packets\Logout.hpp" />
-    <ClInclude Include="Packets\MobileData.hpp" />
-    <ClInclude Include="Packets\Packet.hpp" />
-    <ClInclude Include="Packets\Ping.hpp" />
-    <ClInclude Include="Packets\RemoveArrow.hpp" />
-    <ClInclude Include="Packets\RequestCaptcha.hpp" />
-    <ClInclude Include="Packets\RequestClientUpdate.hpp" />
-    <ClInclude Include="Packets\SetBorder.hpp" />
-    <ClInclude Include="Packets\ShowArrow.hpp" />
-    <ClInclude Include="Packets\UpdateLeaderboardList.hpp" />
-    <ClInclude Include="Packets\UpdateLeaderboardRGB.hpp" />
-    <ClInclude Include="Packets\UpdateNodes.hpp" />
-    <ClInclude Include="Packets\UpdateViewport.hpp" />
-    <ClInclude Include="Player.hpp" />
+    <ClInclude Include="Modules\Vec2.hpp" />
+    <ClInclude Include="Packets\Protocol_1.hpp" />
+    <ClInclude Include="Player\Player.hpp" />
     <ClInclude Include="Modules\Utils.hpp" />
+    <ClInclude Include="Protocol\Protocol.hpp" />
+    <ClInclude Include="Protocol\Protocol_10.hpp" />
+    <ClInclude Include="Protocol\Protocol_11.hpp" />
+    <ClInclude Include="Protocol\Protocol_12.hpp" />
+    <ClInclude Include="Protocol\Protocol_13.hpp" />
+    <ClInclude Include="Protocol\Protocol_14.hpp" />
+    <ClInclude Include="Protocol\Protocol_15.hpp" />
+    <ClInclude Include="Protocol\Protocol_16.hpp" />
+    <ClInclude Include="Protocol\Protocol_17.hpp" />
+    <ClInclude Include="Protocol\Protocol_18.hpp" />
+    <ClInclude Include="Protocol\Protocol_4.hpp" />
+    <ClInclude Include="Protocol\Protocol_5.hpp" />
+    <ClInclude Include="Protocol\Protocol_6.hpp" />
+    <ClInclude Include="Protocol\Protocol_7.hpp" />
+    <ClInclude Include="Protocol\Protocol_8.hpp" />
+    <ClInclude Include="Protocol\Protocol_9.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />

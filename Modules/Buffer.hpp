@@ -7,7 +7,7 @@ public:
     Buffer() noexcept;
     Buffer(const std::vector<unsigned char>&) noexcept;
 
-    void setBuffer(std::vector<unsigned char>&) noexcept;
+    void setBuffer(const std::vector<unsigned char>&) noexcept;
     const std::vector<unsigned char> &getBuffer() const noexcept;
     void clear() noexcept;
 
@@ -15,34 +15,34 @@ public:
 
     /************************** Writing ***************************/
 
-    template <class T> inline void writeBytes(const T &val, bool LE = true);
+    template <class T> inline Buffer &writeBytes(const T &val, bool LE = true);
     unsigned long long getWriteOffset() const noexcept;
 
-    void writeBool(bool) noexcept;
-    void writeStr(const std::string&) noexcept;
-    void writeStrNull(const std::string&) noexcept;
-    void writeInt8(char) noexcept;
-    void writeUInt8(unsigned char) noexcept;
+    Buffer &writeBool(bool) noexcept;
+    Buffer &writeStr(const std::string&) noexcept;
+    Buffer &writeStrNull(const std::string&) noexcept;
+    Buffer &writeInt8(char) noexcept;
+    Buffer &writeUInt8(unsigned char) noexcept;
 
-    void writeInt16_LE(short) noexcept;
-    void writeInt16_BE(short) noexcept;
-    void writeUInt16_LE(unsigned short) noexcept;
-    void writeUInt16_BE(unsigned short) noexcept;
+    Buffer &writeInt16_LE(short) noexcept;
+    Buffer &writeInt16_BE(short) noexcept;
+    Buffer &writeUInt16_LE(unsigned short) noexcept;
+    Buffer &writeUInt16_BE(unsigned short) noexcept;
 
-    void writeInt32_LE(int) noexcept;
-    void writeInt32_BE(int) noexcept;
-    void writeUInt32_LE(unsigned int) noexcept;
-    void writeUInt32_BE(unsigned int) noexcept;
+    Buffer &writeInt32_LE(int) noexcept;
+    Buffer &writeInt32_BE(int) noexcept;
+    Buffer &writeUInt32_LE(unsigned int) noexcept;
+    Buffer &writeUInt32_BE(unsigned int) noexcept;
 
-    void writeInt64_LE(long long) noexcept;
-    void writeInt64_BE(long long) noexcept;
-    void writeUInt64_LE(unsigned long long) noexcept;
-    void writeUInt64_BE(unsigned long long) noexcept;
+    Buffer &writeInt64_LE(long long) noexcept;
+    Buffer &writeInt64_BE(long long) noexcept;
+    Buffer &writeUInt64_LE(unsigned long long) noexcept;
+    Buffer &writeUInt64_BE(unsigned long long) noexcept;
 
-    void writeFloat_LE(float) noexcept;
-    void writeFloat_BE(float) noexcept;
-    void writeDouble_LE(double) noexcept;
-    void writeDouble_BE(double) noexcept;
+    Buffer &writeFloat_LE(float) noexcept;
+    Buffer &writeFloat_BE(float) noexcept;
+    Buffer &writeDouble_LE(double) noexcept;
+    Buffer &writeDouble_BE(double) noexcept;
 
     /************************** Reading ***************************/
 

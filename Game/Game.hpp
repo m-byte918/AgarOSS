@@ -1,24 +1,30 @@
 #pragma once
 #include "../Modules/Utils.hpp"
 #include "../Connection/Server.hpp"
+#include "../Modules/Logger.hpp"
 
 struct Commands;
 class Game {
     friend struct Commands;
 public:
     Game();
-
     void mainLoop();
     void loadConfig();
-
+    void startLogger();
     ~Game();
+
+    unsigned long long tickCount = 0;
 private:
     Server server;
     bool running = true;
-    unsigned long long tickCount = 0;
 };
 
 namespace cfg {
+
+extern int logger_maxSeverity;
+extern int logger_maxFileSeverity;
+extern Logger::Color logger_printTextColor;
+extern Logger::Color logger_backgroundColor;
 
 extern short server_port;
 extern std::string server_name;
@@ -37,17 +43,25 @@ extern double entity_decelerationPerTick;
 extern double entity_minAcceleration;
 extern double entity_minEatOverlap;
 extern double entity_minEatSizeMult;
+extern double entity_restitutionCoefficient;
 
 extern unsigned int player_maxNameLength;
 extern unsigned int player_maxCells;
-extern double player_minViewBoxScale;
+extern float player_maxFreeroamScale;
+extern double player_maxFreeroamSpeed;
 extern unsigned int player_viewBoxWidth;
 extern unsigned int player_viewBoxHeight;
+extern unsigned int player_viewBoxHeight;
+extern double player_baseRemergeTime;
+extern unsigned long long player_cellRemoveTime;
+extern int player_chanceToSpawnFromEjected;
+extern unsigned long long player_collisionIgnoreTime;
 
 extern double playerCell_baseRadius;
 extern double playerCell_maxRadius;
 extern double playerCell_minRadiusToSplit;
 extern double playerCell_minRadiusToEject;
+extern double playerCell_minVirusSplitMass;
 extern double playerCell_ejectAngleVariation;
 extern double playerCell_radiusDecayRate;
 extern double playerCell_initialAcceleration;

@@ -1,7 +1,7 @@
 #include "Ejected.hpp"
 #include "../Game/Game.hpp" // configs
 
-Ejected::Ejected(const Vector2 &pos, double radius, const Color &color) noexcept :
+Ejected::Ejected(const Vec2 &pos, double radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::EJECTED;
 

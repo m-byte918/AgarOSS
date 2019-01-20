@@ -28,7 +28,7 @@ public:
     double right() const noexcept;
     double bottom() const noexcept;
 
-    inline bool contains(const Rect &other) const noexcept;
+    bool contains(const Rect &other) const noexcept;
     inline bool intersects(const Rect &other) const noexcept;
 
 private:
@@ -70,7 +70,7 @@ public:
     QuadTree();
 
     bool insert(Collidable *obj);
-    bool remove(Collidable *obj);
+    bool remove(Collidable *obj) noexcept;
     bool update(Collidable *obj);
     const std::vector<Collidable*> &getObjectsInBound(const Rect &bound);
     unsigned totalChildren() const noexcept;

@@ -1,6 +1,6 @@
 #include "Game.hpp"
 #include "Map.hpp"
-#include "../Player.hpp"
+#include "../Player/Player.hpp"
 #include "../Modules/Logger.hpp"
 #include "../Modules/Commands.hpp"
 #include <future>
@@ -10,22 +10,27 @@
 using namespace std::chrono;
 
 Game::Game() {
-    // Start logger
-    Logger::start();
-    Logger::PRINT.suffix = "";
-
-    loadConfig();   // Load config
+    loadConfig();   // Load config    
+    startLogger();  // Start logger
     server.start(); // Start uWS server
-    map::init();    // Initialize map
 
+    // Wait for server to change running state
+    while (server.runningState == -1) {
+        Logger::print(".");
+    }
+    // Server could not start, end game
+    if (server.runningState == 0) {
+        std::cin.get();
+        return;
+    }
+
+    map::init(this); // Initialize map
     Commands commands(this); // Command handler
-
-                             // fixed timestep of 1 / (60 fps) = 16 milliseconds
-    nanoseconds fixed_timestep = 16ms;
-    nanoseconds lag = 0ns;
-
     std::string userInput;
-    auto startTime = steady_clock::now();
+
+    milliseconds fixed_timestep = (milliseconds)cfg::game_timeStep;
+    auto previous = high_resolution_clock::now();
+    nanoseconds lag = 0ns;
 
     while (running) {
         // Get user input without blocking thread
@@ -35,13 +40,16 @@ Game::Game() {
             return userInput;
         });
         // Main Loop
-        while (future.wait_for((milliseconds)cfg::game_timeStep) == std::future_status::timeout) {
-            nanoseconds deltaTime = steady_clock::now() - startTime;
-            startTime = steady_clock::now();
+        while (future.wait_for(fixed_timestep) == std::future_status::timeout) {
+            auto current = high_resolution_clock::now();
+            auto elapsed = current - previous;
+            previous = current;
+            lag += elapsed;
 
-            lag += deltaTime;
+            //processInput();
 
             while (lag >= fixed_timestep)
+                //update();
                 lag -= fixed_timestep;
 
             mainLoop();
@@ -51,14 +59,15 @@ Game::Game() {
 }
 
 void Game::mainLoop() {
+    ++tickCount;
     //steady_clock::time_point begin = steady_clock::now();
 
     // Update players
-    for (uWS::WebSocket<uWS::SERVER> *client : server.clients)
-        ((Player*)client->getUserData())->update();
+    for (Player *client : server.clients)
+        client->update(tickCount);
 
     // Update entities
-    map::update(++tickCount);
+    map::update(tickCount);
 
     //steady_clock::time_point end = steady_clock::now();
     //Logger::debug("ligma = ", duration_cast<microseconds>(end - begin).count() / 100.0);
@@ -67,7 +76,10 @@ void Game::mainLoop() {
 // Load settings into memory as it is more efficient than
 // grabbing them from json object whenever needed
 void Game::loadConfig() {
-    Logger::info("Loading configurations...");
+    cfg::logger_maxSeverity = config["logger"]["maxSeverity"];
+    cfg::logger_maxFileSeverity = config["logger"]["maxFileSeverity"];
+    cfg::logger_printTextColor = static_cast<Logger::Color>((int)config["logger"]["printTextColor"]);
+    cfg::logger_backgroundColor = static_cast<Logger::Color>((int)config["logger"]["backgroundColor"]);
 
     cfg::server_port = config["server"]["port"];
     cfg::server_name = config["server"]["name"].get<std::string>();
@@ -89,14 +101,20 @@ void Game::loadConfig() {
 
     cfg::player_maxNameLength = config["player"]["maxNameLength"];
     cfg::player_maxCells = config["player"]["maxCells"];
-    cfg::player_minViewBoxScale = config["player"]["minViewBoxScale"];
+    cfg::player_maxFreeroamScale = config["player"]["maxFreeroamScale"];
+    cfg::player_maxFreeroamSpeed = config["player"]["maxFreeroamSpeed"];
     cfg::player_viewBoxWidth = config["player"]["viewBoxWidth"];
     cfg::player_viewBoxHeight = config["player"]["viewBoxHeight"];
+    cfg::player_baseRemergeTime = config["player"]["baseRemergeTime"];
+    cfg::player_cellRemoveTime = config["player"]["cellRemoveTime"];
+    cfg::player_chanceToSpawnFromEjected = config["player"]["chanceToSpawnFromEjected"];
+    cfg::player_collisionIgnoreTime = config["player"]["collisionIgnoreTime"];
 
     cfg::playerCell_baseRadius = config["playerCell"]["baseRadius"];
     cfg::playerCell_maxRadius = config["playerCell"]["maxRadius"];
     cfg::playerCell_minRadiusToSplit = config["playerCell"]["minRadiusToSplit"];
     cfg::playerCell_minRadiusToEject = config["playerCell"]["minRadiusToEject"];
+    cfg::playerCell_minVirusSplitMass = config["playerCell"]["minVirusSplitMass"];
     cfg::playerCell_ejectAngleVariation = config["playerCell"]["ejectAngleVariation"];
     cfg::playerCell_radiusDecayRate = config["playerCell"]["radiusDecayRate"];
     cfg::playerCell_initialAcceleration = config["playerCell"]["initialAcceleration"];
@@ -146,16 +164,38 @@ void Game::loadConfig() {
     cfg::ejected_canEat = config["ejected"]["canEat"];
 }
 
+void Game::startLogger() {
+    Logger::start();
+    Logger::PRINT.suffix = "";
+    Logger::setSeverity(cfg::logger_maxSeverity);
+    Logger::setFileSeverity(cfg::logger_maxFileSeverity);
+    Logger::setConsoleColor(cfg::logger_backgroundColor);
+    Logger::setTextColor(cfg::logger_printTextColor);
+    Logger::ERR.bgColor = cfg::logger_backgroundColor;
+    Logger::INFO.bgColor = cfg::logger_backgroundColor;
+    Logger::WARN.bgColor = cfg::logger_backgroundColor;
+    Logger::PRINT.bgColor = cfg::logger_backgroundColor;
+    Logger::FATAL.bgColor = cfg::logger_backgroundColor;
+    Logger::DEBUG.bgColor = cfg::logger_backgroundColor;
+    Logger::info("Starting logger...");
+    Logger::info("Loading configurations...");
+}
+
 Game::~Game() {
     server.end(); // Stop uWS server
     map::clear(); // Clear map
 
-                  // End logger
+    // End logger
     Logger::warn("Saving log...");
     Logger::end();
 }
 
 namespace cfg {
+
+int logger_maxSeverity;
+int logger_maxFileSeverity;
+Logger::Color logger_printTextColor;
+Logger::Color logger_backgroundColor;
 
 short server_port;
 std::string server_name;
@@ -174,17 +214,24 @@ double entity_decelerationPerTick;
 double entity_minAcceleration;
 double entity_minEatOverlap;
 double entity_minEatSizeMult;
+double entity_restitutionCoefficient;
 
 unsigned int player_maxNameLength;
 unsigned int player_maxCells;
-double player_minViewBoxScale;
+float player_maxFreeroamScale;
+double player_maxFreeroamSpeed;
 unsigned int player_viewBoxWidth;
 unsigned int player_viewBoxHeight;
+double player_baseRemergeTime;
+unsigned long long player_cellRemoveTime;
+int player_chanceToSpawnFromEjected;
+unsigned long long player_collisionIgnoreTime;
 
 double playerCell_baseRadius;
 double playerCell_maxRadius;
 double playerCell_minRadiusToSplit;
 double playerCell_minRadiusToEject;
+double playerCell_minVirusSplitMass;
 double playerCell_ejectAngleVariation;
 double playerCell_radiusDecayRate;
 double playerCell_initialAcceleration;

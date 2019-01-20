@@ -1,8 +1,8 @@
 #include "Commands.hpp"
 #include "../Game/Game.hpp"
 #include "Logger.hpp"
-#include "../Player.hpp"
 #include "../Game/Map.hpp"
+#include "../Player/Player.hpp"
 #include "../Entities/Food.hpp"
 #include "../Entities/Virus.hpp"
 #include "../Entities/Ejected.hpp"
@@ -21,17 +21,17 @@ Player *Commands::getPlayer(const json &arg) {
 }
 
 Player *Commands::getPlayerById(unsigned long long id) {
-    for (const auto &socket : game->server.clients) {
-        Player *player = (Player*)socket->getUserData();
-        if (player->id == id) return player;
+    for (Player *player : game->server.clients) {
+        if (player->id == id && player->state() != PlayerState::DISCONNECTED) 
+            return player;
     }
     return nullptr;
 }
 
 Player *Commands::getPlayerByName(const std::string &name) {
-    for (const auto &socket : game->server.clients) {
-        Player *player = (Player*)socket->getUserData();
-        if (player->getCellName() == name) return player;
+    for (Player *player : game->server.clients) {
+        if (player->cellName() == name && player->state() != PlayerState::DISCONNECTED) 
+            return player;
     }
     return nullptr;
 }
@@ -55,7 +55,7 @@ void Commands::handleUserInput(std::string &in) {
     }
     // Extract arguments between parentheses
     unsigned int s = 0;
-    for (const std::string &arg : args) s += arg.size();
+    for (const std::string &arg : args) s += (unsigned int)arg.size();
     args = splitStr(std::string(in.begin() + name.size() + 1, in.begin() + s), ',');
 
     // Parse newly extracted arguments
@@ -84,17 +84,21 @@ void Commands::handleUserInput(std::string &in) {
 void Commands::help(const std::vector<json> &args) {
     if (!args.empty()) throw "help() takes zero arguments.";
 
-    Logger::info("exit() ----------------------------------------- Stops the game and closes the server.");
+    Logger::info("clr() ------------------------------------------ Clears console output.");
     Logger::info("clearMap() ------------------------------------- Clears the map and removes all entities.");
     Logger::info("playerlist() ----------------------------------- Prints a list of information for each player.");
+    Logger::info("exit(), stop() --------------------------------- Stops the game and closes the server.");
     Logger::info("toRadius(mass) ----------------------------------Converts provided mass to radius.");
     Logger::info("toMass(radius) ----------------------------------Converts provided radius to mass.");
     Logger::info("getConfig(name = all) -------------------------- Prints value of config[name].");
     Logger::info("setConfig(name, value) ------------------------- Sets value of config[name].");
+    Logger::info("pop(playerid|playername) ----------------------- Pops a player's cells");
+    Logger::info("kill(playerid|playername) ---------------------- Kills a player.");
+    Logger::info("merge(playerid|playername) --------------------- Forces a player's cells to remerge.");
     Logger::info("getConfig(group, name = all) ------------------- Prints value of config[group][name].");
-    Logger::info("setMass(playerid/playername, mass) ------------- Sets mass of a player.");
+    Logger::info("setMass(playerid|playername, mass) ------------- Sets mass of a player.");
     Logger::info("setConfig(group, configname, value) ------------ Sets value of config[group][name].");
-    Logger::info("setPosition(playerid/playername, x, y) --------- Sets position of a player's cells.");
+    Logger::info("setPosition(playerid|playername, x, y) --------- Sets position of a player's cells.");
     Logger::info("spawn(amount, type[, x, y[, mass][, r, g, b]]) - Spawns an entity.");
 }
 
@@ -102,6 +106,28 @@ void Commands::exit(const std::vector<json> &args) {
     if (!args.empty()) throw "exit() takes zero arguments.";
     Logger::warn("Closing server...");
     game->running = false;
+}
+
+void Commands::kill(const std::vector<json> &args) {
+    if (args.size() != 1 || (!args[0].is_number_unsigned() && !args[0].is_string()))
+        throw "Invalid arguments.";
+
+    Player *player = getPlayer(args[0]);
+
+    if (player == nullptr)
+        throw "Player does not exist.";
+    if (player->state() != PlayerState::PLAYING)
+        throw "Player is not in-game.";
+
+    while (!player->cells.empty()) {
+        map::despawn(player->cells.back());
+    }
+    Logger::print("Killed " + player->cellName());
+}
+
+void Commands::clr(const std::vector<json> &args) {
+    if (!args.empty()) throw "exit() takes zero arguments.";
+    Logger::clearConsole();
 }
 
 void Commands::clearMap(const std::vector<json> &args) {
@@ -121,6 +147,43 @@ void Commands::toRadius(const std::vector<json> &args) {
     Logger::info(utils::toRadius(args[0]));
 }
 
+void Commands::pop(const std::vector<json> &args) {
+    if (args.size() != 1 || (!args[0].is_number_unsigned() && !args[0].is_string()))
+        throw "Invalid arguments.";
+
+    Player *player = getPlayer(args[0]);
+
+    if (player == nullptr)
+        throw "Player does not exist.";
+    if (player->state() != PlayerState::PLAYING)
+        throw "Player is not in-game.";
+
+    PlayerCell::Entity *biggestCell = player->cells[0].get();
+    for (e_ptr cell : player->cells) {
+        if (cell->radius() > biggestCell->radius())
+            biggestCell = cell.get();
+    }
+    biggestCell->pop();
+
+    Logger::print("Popped " + player->cellName());
+}
+
+void Commands::merge(const std::vector<json> &args) {
+    if (args.size() != 1 || (!args[0].is_number_unsigned() && !args[0].is_string()))
+        throw "Invalid arguments.";
+
+    Player *player = getPlayer(args[0]);
+
+    if (player == nullptr)
+        throw "Player does not exist.";
+    if (player->state() != PlayerState::PLAYING)
+        throw "Player is not in-game.";
+
+    player->isForceMerging = !player->isForceMerging;
+
+    Logger::print(player->cellName() + " is ", player->isForceMerging ? "" : "no longer ", "force merging");
+}
+
 void Commands::setMass(const std::vector<json> &args) {
     if (args.size() != 2 ||
         (!args[0].is_number_unsigned() && !args[0].is_string()) ||
@@ -130,7 +193,7 @@ void Commands::setMass(const std::vector<json> &args) {
 
     if (player == nullptr)
         throw "Player does not exist.";
-    if (player->getState() != PlayerState::PLAYING)
+    if (player->state() != PlayerState::PLAYING)
         throw "Player is not in-game.";
 
     double radius = utils::toRadius(args[1]);
@@ -139,9 +202,9 @@ void Commands::setMass(const std::vector<json> &args) {
         throw "Size cannot be less than playerCell's base radius.";
 
     for (e_ptr cell : player->cells)
-        cell->setRadius(radius);
+        cell->setMass(args[1]);
 
-    Logger::print("Set mass of " + player->getCellName() + " to " + args[1].dump() + "\n");
+    Logger::print("Set mass of " + player->cellName() + " to " + args[1].dump() + "\n");
 }
 
 void Commands::setPosition(const std::vector<json> &args) {
@@ -152,20 +215,20 @@ void Commands::setPosition(const std::vector<json> &args) {
 
     if (player == nullptr)
         throw "Player does not exist.";
-    if (player->getState() != PlayerState::PLAYING)
+    if (player->state() != PlayerState::PLAYING)
         throw "Player is not in-game.";
 
     double x = args[1];
     double y = args[2];
-    Rect bounds = map::getBounds();
+    Rect bounds = map::bounds();
 
     if (x < bounds.left() || x > bounds.right() || y < bounds.bottom() || y > bounds.top())
         throw "Position is out of bounds.";
 
     for (e_ptr cell : player->cells)
         cell->setPosition({ x, y });
-    Logger::print("Set position of " + player->getCellName() + " to "
-        + player->getCenter().toString() + "\n");
+    Logger::print("Set position of " + player->cellName() + " to "
+        + player->center().toString() + "\n");
 }
 
 void Commands::playerlist(const std::vector<json> &args) {
@@ -178,22 +241,21 @@ void Commands::playerlist(const std::vector<json> &args) {
     std::vector<std::string> ids, states, protocols, cells, scores, centers, names;
 
     // collect information
-    for (uWS::WebSocket<uWS::SERVER> *socket : game->server.clients) {
-        Player *player = (Player*)socket->getUserData();
+    for (Player *player : game->server.clients) {
         ids.push_back(std::to_string(player->id));
 
-        switch (player->getState()) {
+        switch (player->state()) {
         case PlayerState::DEAD: states.push_back("DEAD"); break;
         case PlayerState::DISCONNECTED: states.push_back("DISCONNECTED"); break;
         case PlayerState::FREEROAM: states.push_back("FREEROAM"); break;
         case PlayerState::PLAYING: states.push_back("PLAYING"); break;
         case PlayerState::SPECTATING: states.push_back("SPECTATING"); break;
         };
-        protocols.push_back(std::to_string(player->protocol));
+        protocols.push_back(std::to_string(player->protocolNum));
         cells.push_back(std::to_string(player->cells.size()));
-        scores.push_back(std::to_string((int)player->getScore()));
-        centers.push_back(player->getCenter().toString());
-        names.push_back(player->getCellName());
+        scores.push_back(std::to_string((int)player->score()));
+        centers.push_back(player->center().toString());
+        names.push_back(player->cellName());
     }
     // sort strings by size
     auto compare = [](const std::string& first, const std::string& second) {
@@ -206,13 +268,13 @@ void Commands::playerlist(const std::vector<json> &args) {
     std::sort(scores.begin(), scores.end(), compare);
     std::sort(centers.begin(), centers.end(), compare);
     std::sort(names.begin(), names.end(), compare);
-    unsigned int idSize = ids.back().size();
-    unsigned int stateSize = states.back().size();
-    unsigned int protocolSize = protocols.back().size();
-    unsigned int cellSize = cells.back().size();
-    unsigned int scoreSize = scores.back().size();
-    unsigned int centerSize = centers.back().size();
-    unsigned int nameSize = names.back().size();
+    unsigned int idSize = (unsigned int)ids.back().size();
+    unsigned int stateSize = (unsigned int)states.back().size();
+    unsigned int protocolSize = (unsigned int)protocols.back().size();
+    unsigned int cellSize = (unsigned int)cells.back().size();
+    unsigned int scoreSize = (unsigned int)scores.back().size();
+    unsigned int centerSize = (unsigned int)centers.back().size();
+    unsigned int nameSize = (unsigned int)names.back().size();
 
     // print columns + whitespace the size of the largest string to keep
     // the columns neat and organized no matter the length of a single row
@@ -305,6 +367,7 @@ void Commands::setConfig(const std::vector<json> &args) {
     else
         config[args[0].get<std::string>()][args[1].get<std::string>()] = args[2];
 
+    Logger::info("Reloading configurations...");
     game->loadConfig(); // Reload config
 }
 
@@ -320,14 +383,14 @@ void Commands::spawn(const std::vector<json> &args) {
         throw "Invalid entity type. Valid types are food, virus, ejected, and motherCell.";
 
     // Validate position
-    Vector2 position;
+    Vec2 position;
     bool positionProvided = args.size() >= 4;
     if (positionProvided) {
         if (!args[2].is_number() || !args[3].is_number())
             throw "Coordinates must be a number.";
         double x = args[2];
         double y = args[3];
-        Rect bound = map::getBounds();
+        Rect bound = map::bounds();
 
         if (x < bound.left() || x > bound.right() || y < bound.bottom() || y > bound.top())
             throw "Position is out of bounds.";
@@ -359,7 +422,11 @@ void Commands::spawn(const std::vector<json> &args) {
 
         if (type == "food") map::spawn<Food>(position, radius, color);
         else if (type == "virus") map::spawn<Virus>(position, radius, color);
-        else if (type == "ejected") map::spawn<Ejected>(position, radius, color);
+        else if (type == "ejected") {
+            e_ptr e = map::spawn<Ejected>(position, radius, color);
+            e->setCreator(1);
+            e->setVelocity(rand(1.0, cfg::ejected_initialAcceleration), rand(0.0, 2.0) * (double)MATH_PI);
+        }
         else map::spawn<MotherCell>(position, radius, color);
     }
     std::string positionStr = positionProvided ? position.toString() : "random position";
@@ -369,6 +436,21 @@ void Commands::spawn(const std::vector<json> &args) {
 }
 
 void Commands::debug(const std::vector<json> &args) {
+    args;
+    /*Player *player = getPlayer(args[0]);
+    for (Collidable *obj : map::quadTree.getObjectsInBound(player->viewBox)) {
+        Entity *entity = std::any_cast<Entity*>(obj->data);
+        if (entity->isRemoved)
+            Logger::warn("Entity is removed");
+        if (entity->needsUpdate)
+            Logger::warn("Entity needs an update");
+    }
+    for (const auto &[nodeId, entity] : player->visibleNodes) {
+        if (!entity->isRemoved)
+            continue;
+        if (entity->needsUpdate)
+            Logger::warn("2: Entity needs an update");
+    }*/
     Logger::info("Food: ", map::entities[CellType::FOOD].size());
     Logger::info("Viruses: ", map::entities[CellType::VIRUS].size());
     Logger::info("Ejected: ", map::entities[CellType::EJECTED].size());

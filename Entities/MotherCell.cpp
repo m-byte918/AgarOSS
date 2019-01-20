@@ -2,7 +2,7 @@
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
 
-MotherCell::MotherCell(const Vector2 &pos, double radius, const Color &color) noexcept :
+MotherCell::MotherCell(const Vec2 &pos, double radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::MOTHERCELL;
 
@@ -15,7 +15,7 @@ MotherCell::MotherCell(const Vector2 &pos, double radius, const Color &color) no
 }
 void MotherCell::onDespawned() const noexcept {
     // Spawn a new one immediately
-    if (map::entities[CellType::MOTHERCELL].size() < cfg::motherCell_maxAmount)
+    if (map::entities[CellType::MOTHERCELL].size() < cfg::motherCell_startAmount)
         map::spawn<MotherCell>(randomPosition(), cfg::motherCell_baseRadius, cfg::motherCell_color);
 }
 MotherCell::~MotherCell() {

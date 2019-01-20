@@ -1,6 +1,44 @@
 # Changelog
-
-### v3.7
+### v0.75
+- Rewrote and reorganized how packets are handled and interpreted
+- Fixed bug where uWS server would never start if it wasn't fast enough
+- Rename Vector2 module to Vec2
+- Removed 'get' portion of 'getter' function names (I like it better this way)
+- Reformatted and reorganized `Entity` and `Player` classes
+- Implemented merging for playercells along with `baseRemergeTime` configuration
+- Implemented auto-splitting
+- Implemented (experimental) virus explosions along with `minVirusSplitMass` configuration
+- Fixed bug where groups of viruses shot from the same virus would collide with each other
+- Fixed bug where moving ejected cells would not collide with ones that have stopped moving
+- Rewrote collision, move, and eat engines
+- Added `Entity::toString()` method
+- Fixed bug where eaten viruses would respawn regardless if the current amount was greater than the start amount
+- Fixed bug where eaten playercells would not be removed from their owner's vector
+- Implemented playercells freezing after their owner has disconnected, along with `cellRemoveTime` configuration
+- Added the ability to linesplit
+- Fixed bug where newly-split playercells would spawn at a random point on the map
+- Implemented vanilla feature where newly ejected cells do not collide with their creator until it has stopped moving
+- Added configurations to change logger severity and logger colors
+- Added `Game::startLogger()` method for use with new configurations
+- Small refactoring to `Game` constructor
+- Added `map::spawnUnsafe()` method for use with spawning accelerating entities
+- Added `map::acceleratingEntities` variable to store and update all accelerating entities at once
+- Write methods in `Buffer` class now return references to themselves
+- Mostly fixed bug where dangling pointers to removed entities were being passed through collision/move/eat engine
+- Added `kill()`, `clr()`, `pop()`, and `merge()` commands
+- Added ability for ejected cells to spawn at random velocities and speeds when spawned using the `spawn()` command
+- Refactored how players are updated
+- Implemented updating for each player state
+- Added ability to spawn from ejected mass, along with `chanceToSpawnFromEjected` configuration
+- Added ability to freeroam, along with `maxFreeroamScale` and `maxFreeroamSpeed` configurations
+- Added ability to spectate the largest player
+- Improved playercell splitting and added `collisionIgnoreTime` configuration
+- Fixed bug where some players would not be removed from list of clients after disconnecting
+- Added `dot()` and `round()` methods to `Vec2` (previously `Vector2`) class
+- Fixed compiling on linux, now using g++-7 for c++17 features
+- Other optimizations and performance improvements
+---
+### v0.38
 - Added support for linux (please note that running this on Linux is still buggy) 
 - Fixed invalid `UpdateNodes` packet being sent and added `writeStrNull()` method to Buffer class, thanks to @B0RYS :)
 - Reorganized where files are placed
@@ -22,7 +60,7 @@
 - Added `compile.sh` and `compile.bat` files to aid in compiling this project
 - Added `Changelog.md`
 ---
-### v1.8
+### v0.18
 - Rename `size` to `radius`
 - Added and renamed some configs
 - Fixed player viewbox center

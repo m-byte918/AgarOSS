@@ -1,7 +1,9 @@
 #pragma once
+#pragma warning(push, 0)        
 #include "json.hpp"    // json, toRadius, splitStr, smart pointers
+#pragma warning(pop)
 #include <random>      // rand()
-#include "Vector2.hpp" // randomPosition()
+#include "Vec2.hpp" // randomPosition()
 
 // Stuff I dont feel like typing out
 using json = nlohmann::json;
@@ -45,7 +47,7 @@ extern std::vector<std::string> splitStr(const std::string &str, char delimiter)
 
 extern Color randomColor() noexcept;
 
-extern Vector2 randomPosition() noexcept;
+extern Vec2 randomPosition() noexcept;
 
 extern inline double rand(double min, double max) {
     std::random_device rd;

@@ -1,12 +1,22 @@
 #include "Modules/Utils.hpp"
+#include "Modules/Logger.hpp"
 
 json config = {
+    { "logger", {
+        { "maxSeverity", 5 },
+        { "maxFileSeverity", 5 },
+        { "printTextColor", Logger::Color::White },
+        { "backgroundColor", Logger::Color::Black },
+    }},
+
     { "server", {
         { "port", 8080 },
         { "name", "MultiOgar-Cpp" },
         { "maxConnections", 500 },
         { "maxSupportedProtocol", 18 },
-        { "minSupportedProtocol", 1 }
+        { "minSupportedProtocol", 1 },
+        { "loggerMaxSeverity", 5 },
+        { "loggerMaxFileSeverity", 5 },
     }},
 
     { "game", {
@@ -21,9 +31,17 @@ json config = {
     { "player", {
         { "maxNameLength", 15 },
         { "maxCells", 16 },
-        { "minViewBoxScale", 0.15 },
+        { "maxFreeroamScale", 0.4f },
+        { "maxFreeroamSpeed", 32 },
         { "viewBoxWidth", 1920 },
-        { "viewBoxHeight", 1080 }
+        { "viewBoxHeight", 1080 },
+        { "baseRemergeTime", 30 },
+        { "cellRemoveTime", 0 },
+        { "chanceToSpawnFromEjected", 50 },
+
+        // 16 frames @30fps = 0.60 seconds
+        // 0.60 / 0.040 = 15 ticks
+        { "collisionIgnoreTime", 12 }
     }},
 
     // to get radius from mass, use toRadius(mass)
@@ -32,7 +50,7 @@ json config = {
         { "decelerationPerTick", 9.5 },
         { "minAcceleration", 0.95 },
         { "minEatOverlap", 0.4 },
-        { "minEatSizeMult", 1.15 }
+        { "minEatSizeMult", 1.15 },
     }},
 
     { "playerCell", {
@@ -40,7 +58,8 @@ json config = {
         { "maxRadius", 1500 },
         { "minRadiusToSplit", 60 },
         { "minRadiusToEject", 59.16079783 },
-        { "ejectAngleVariation", 0.2 },
+        { "minVirusSplitMass", 19.36 }, // size 44
+        { "ejectAngleVariation", 0.3 },
         { "radiusDecayRate", 0.998 },
         { "initialAcceleration", 780 },
         { "isSpiked", false },
