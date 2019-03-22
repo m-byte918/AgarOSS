@@ -1,14 +1,13 @@
 #include "Player.hpp"
 #include "../Game/Map.hpp"
-#include "../Game/Game.hpp"
+#include "../Player/Minion.hpp"
 #include "../Modules/Logger.hpp"
 #include "../Entities/Ejected.hpp"
 
 //********************* SETTERS *********************//
 
-Player::Player(uWS::WebSocket<uWS::SERVER> *_socket) :
-    socket(_socket),
-    packetHandler(PacketHandler(this)) {
+Player::Player(Server *_server) : 
+    server(_server) {
     id = prevPlayerId == 4294967295 ? 1 : ++prevPlayerId;
 }
 void Player::setDead() noexcept {
@@ -29,12 +28,7 @@ void Player::setSkinName(const std::string &name) noexcept {
         _skinName = !name.size() ? "" : name;
 }
 void Player::setCellName(const std::string &name) noexcept {
-    if (_cellName == name)
-        return;
-    if (!name.size() || (name.size() == 1 && name[0] == 0))
-        _cellName = "An unnamed cell";
-    else
-        _cellName = name;
+    _cellName = name;
 }
 
 //********************* GETTERS *********************//
@@ -65,7 +59,7 @@ void Player::update(unsigned long long tick) {
         updateVisibleNodes();
     }
     else if (_state == PlayerState::PLAYING) {
-        updateScale();
+        updateScore();
         updateCenter();
         updateViewBox();
         updateVisibleNodes();
@@ -74,7 +68,7 @@ void Player::update(unsigned long long tick) {
         // Update _center
         Vec2 d = _mouse - _center;
         double dist  = d.length();
-        double speed = std::min(dist, cfg::player_maxFreeroamSpeed);
+        double speed = std::min(dist, (double)cfg::player_maxFreeroamSpeed);
 
         if (speed > 1) {
             d = _center + (d / dist * speed); // normalize and add speed
@@ -102,20 +96,13 @@ void Player::update(unsigned long long tick) {
         packetHandler.sendPacket(protocol->updateViewport({ viewBox.x(), viewBox.y() }, largest->scale));
     }
     else if (_state == PlayerState::DISCONNECTED) {
-        if (disconnectionTick == 0)
-            disconnectionTick = tick;
-        if (cfg::player_cellRemoveTime <= 0 || cells.empty()) {
-            server->clients.erase(std::find(server->clients.begin(), server->clients.end(), this));
-        } else if (tick - disconnectionTick >= cfg::player_cellRemoveTime * 25) {
-            while (!cells.empty())
-                map::despawn(cells.back());
-        }
+        updateDisconnection(tick);
     }
 }
-void Player::updateScale() {
+void Player::updateScore() {
     _score = 0;
     double total = 0;
-    for (const e_ptr &cell : cells) {
+    for (const Entity *cell : cells) {
         _score += cell->mass();
         total += cell->radius();
     }
@@ -126,7 +113,7 @@ void Player::updateCenter() {
     if (cells.empty()) return;
 
     Vec2 total;
-    for (const e_ptr &cell : cells)
+    for (const Entity *cell : cells)
         total += cell->position();
 
     _center = total / (double)cells.size();
@@ -143,20 +130,21 @@ void Player::updateVisibleNodes() {
     std::vector<e_ptr> delNodes, eatNodes, addNodes, updNodes;
     std::map<unsigned long long, e_ptr> newVisibleNodes;
 
-    // This can be optimized further
     for (Collidable *obj : map::quadTree.getObjectsInBound(viewBox)) {
         Entity *entity = std::any_cast<Entity*>(obj->data);
+        if (entity->state & isRemoved) continue;
         if (visibleNodes.find(entity->nodeId()) == visibleNodes.end())
             addNodes.push_back(entity->shared);
-        if (entity->needsUpdate)
+        else if (entity->state & needsUpdate)
             updNodes.push_back(entity->shared);
         newVisibleNodes[entity->nodeId()] = entity->shared;
     }
     for (const auto &[nodeId, entity] : visibleNodes) {
-        if (!entity->isRemoved) continue;
-        if (entity->killerId() != 0)
-            eatNodes.push_back(entity);
-        delNodes.push_back(entity);
+        if (entity->state & isRemoved || newVisibleNodes.find(nodeId) == newVisibleNodes.end()) {
+            if (entity->killerId() != 0)
+                eatNodes.push_back(entity);
+            delNodes.push_back(entity);
+        }
     }
     visibleNodes = newVisibleNodes;
 
@@ -164,27 +152,41 @@ void Player::updateVisibleNodes() {
     if (eatNodes.size() + updNodes.size() + delNodes.size() + addNodes.size() > 0)
         packetHandler.sendPacket(protocol->updateNodes(eatNodes, updNodes, delNodes, addNodes));
 }
+void Player::updateDisconnection(unsigned long long tick) {
+    if (disconnectionTick == 0)
+        disconnectionTick = tick;
+    if (cfg::player_cellRemoveTime <= 0 || cells.empty()) {
+        server->clients.erase(std::find(server->clients.begin(), server->clients.end(), this));
+    } else if (tick - disconnectionTick >= cfg::player_cellRemoveTime * 25) {
+        while (!cells.empty())
+            map::despawn(cells.back());
+    }
+}
 
 //********************* RECEIVED INFORMATION *********************//
 
 void Player::onQKey() noexcept {
+    controllingMinions = !controllingMinions;
     if (_state == PlayerState::SPECTATING)
         setFreeroam();
     else if (_state == PlayerState::FREEROAM)
         setSpectating();
 }
 void Player::onSplit() noexcept {
-    if (_state != PlayerState::PLAYING)
+    if (controllingMinions) {
+        for (Minion *m : minions)
+            m->onSplit();
         return;
-    if (cells.size() >= cfg::player_maxCells)
+    }
+    if (_state != PlayerState::PLAYING || cells.size() >= cfg::player_maxCells)
         return;
     
     std::vector<e_ptr> cellsToSplit;
-    for (const e_ptr &cell : cells) {
+    for (const Entity *cell : cells) {
         // Too small to split
-        if (cell->radius() <= cfg::playerCell_minRadiusToSplit)
+        if (cell->mass() <= cfg::playerCell_minMassToSplit)
             continue;
-        cellsToSplit.push_back(cell);
+        cellsToSplit.push_back(cell->shared);
         if (cellsToSplit.size() + cells.size() >= cfg::player_maxCells)
             break;
     }
@@ -199,21 +201,24 @@ void Player::onSplit() noexcept {
         double angle = diff.angle();
         if (std::isnan(angle)) angle = MATH_PI * 0.5f;
 
-        double halfRadius = cell->radius() * INV_SQRT_2;
+        float halfRadius = cell->radius() * INV_SQRT_2;
         cell->setRadius(halfRadius); // Halve splitting cells radius
         cell->split(angle, halfRadius); // Split at half radius
     }
 }
 void Player::onEject() noexcept {
-    // Note regarding vanilla servers: Ejected mass does not collide 
-    // with its ejector until it has completely stopped acelerating
+    if (controllingMinions) {
+        for (Minion *m : minions)
+            m->onEject();
+        return;
+    }
     if (_state != PlayerState::PLAYING)
         return;
-    double ejectMass = toMass(cfg::ejected_baseRadius);
-    double variation = cfg::playerCell_ejectAngleVariation;
+    float ejectMass = toMass(cfg::ejected_baseRadius);
+    float variation = cfg::playerCell_ejectAngleVariation;
 
     // Eject from all cells if possible
-    for (e_ptr &cell : cells) {
+    for (Entity *cell : cells) {
         if (cell->radius() < cfg::playerCell_minRadiusToEject)
             continue;
 
@@ -249,7 +254,13 @@ void Player::onSpectate() noexcept {
 }
 void Player::onDisconnection() noexcept {
     _state = PlayerState::DISCONNECTED;
-    delete protocol;
+
+    // Cache cell destination
+    for (Entity *cell : cells)
+        cell->mouseCache = cell->position();
+    // Remove minions
+    while (!minions.empty())
+        minions.back()->onDisconnection();
 }
 void Player::onTarget(const Vec2 &target) noexcept {
     if (_state == PlayerState::DEAD) return;
@@ -260,29 +271,37 @@ void Player::onTarget(const Vec2 &target) noexcept {
 void Player::onSpawn(std::string name) noexcept {
     if (_state == PlayerState::PLAYING) return;
 
-    // Get skin name
-    name.pop_back();
-    std::string skin;
-    size_t skinStart = name.find('<');
-    size_t skinEnd = name.find('>');
-    if (skinStart != skinEnd && skinStart != -1 && skinEnd != -1)
-        skin = name.substr(skinStart + 1, skinEnd - 1);
+    spawn(name);
 
-    setSkinName(skin.substr(0, cfg::player_maxNameLength));
-    setCellName(name.substr(skin.size() == 0 ? 0 : skinEnd + 1, cfg::player_maxNameLength));
+    // Send update to client
+    visibleNodes.clear();
+    packetHandler.sendPacket(protocol->clearAll());
+    packetHandler.sendPacket(protocol->addNode(cells.back()->nodeId()));
+}
 
-    Vec2   position = randomPosition();
-    Color  color    = randomColor();
-    double radius   = cfg::playerCell_baseRadius;
+void Player::spawn(std::string name) noexcept {
+    if (!name.empty()) {
+        if (+name.back() == 0) name.pop_back();
+        size_t skinStart = name.find('<');
+        size_t skinEnd = name.find('>');
+        if (skinStart != skinEnd && skinStart != -1 && skinEnd != -1) {
+            std::string skin = name.substr(skinStart + 1, skinEnd - 1);
+            setSkinName(skin.substr(0, cfg::player_maxNameLength));
+        }
+        setCellName(name.substr(_skinName.size() == 0 ? 0 : skinEnd + 1, cfg::player_maxNameLength));
+    }
+    Vec2  position = randomPosition();
+    Color color    = randomColor();
+    float radius   = spawnRadius;
 
     // Chance to spawn from ejected mass
     if (cfg::player_chanceToSpawnFromEjected >= 1 && cfg::player_chanceToSpawnFromEjected <= 100) {
         std::vector<e_ptr> &ejectedCells = map::entities[CellType::EJECTED];
         if (rand(1, 100) <= cfg::player_chanceToSpawnFromEjected && !ejectedCells.empty()) {
             // Select random ejected cell
-            e_ptr ejected = ejectedCells[rand(0, (int)ejectedCells.size())];
+            Entity *ejected = ejectedCells[rand(0, (int)ejectedCells.size() - 1)].get();
 
-            if (!ejected->isRemoved && ejected->acceleration() < 1) {
+            if (ejected && !(ejected->state & isRemoved) && ejected->acceleration() < 1) {
                 position = ejected->position();
                 radius   = std::max(ejected->radius(), radius);
                 color    = ejected->color();
@@ -292,19 +311,12 @@ void Player::onSpawn(std::string name) noexcept {
     }
     // Spawn de cell
     e_ptr cell = map::spawn<PlayerCell>(position, radius, color);
-    cells.push_back(cell);
+    cells.push_back(cell.get());
     cell->setOwner(this);
     cell->setCreator(id);
-    visibleNodes.clear();
-    packetHandler.sendPacket(protocol->clearAll());
-    packetHandler.sendPacket(protocol->addNode(cell->nodeId()));
-
-    // Initial update
     _state = PlayerState::PLAYING;
     _mouse = cell->position();
-    update(0);
 }
 
 Player::~Player() {
-    onDisconnection();
 }

@@ -1,7 +1,7 @@
 #include "Ejected.hpp"
 #include "../Game/Game.hpp" // configs
 
-Ejected::Ejected(const Vec2 &pos, double radius, const Color &color) noexcept :
+Ejected::Ejected(const Vec2 &pos, float radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::EJECTED;
 
@@ -9,8 +9,8 @@ Ejected::Ejected(const Vec2 &pos, double radius, const Color &color) noexcept :
     canEat = cfg::ejected_canEat;
     avoidSpawningOn = nothing; // Must be able to be spawned near any entity
 
-    isSpiked = cfg::ejected_isSpiked;
-    isAgitated = cfg::ejected_isAgitated;
+    if (cfg::ejected_isSpiked)   state |= isSpiked;
+    if (cfg::ejected_isAgitated) state |= isAgitated;
 }
 
 Ejected::~Ejected() {

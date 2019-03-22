@@ -59,7 +59,7 @@ void Logger::resetColors() noexcept {
         setConsoleInfo();
         SetConsoleTextAttribute(hOut, defaultColorAttribs);
     #else
-        std::cout << "\e[0m\n";
+        std::cout << "\e[0m";
         lastFgColor = "39";
         lastConsoleColor = "49";
     #endif // _WIN32
@@ -79,7 +79,7 @@ void Logger::clearConsole() noexcept {
     #else
         if (lastConsoleColor != "49")
             std::cout << "\e[0;" << lastFgColor << ";" << lastConsoleColor << "m";
-        std::cout << "\e[2J\e[1;1H\n";
+        std::cout << "\e[2J\e[1;1H";
     #endif // _WIN32
 }
 

@@ -1,6 +1,8 @@
 #include "Server.hpp"
 #include "../Game/Game.hpp"
 #include "../Player/Player.hpp"
+#include "../Player/Minion.hpp"
+#include "../Player/PlayerBot.hpp"
 #include "../Modules/Logger.hpp"
 
 void Server::start() {
@@ -10,15 +12,14 @@ void Server::start() {
         onClientConnection(&hub);
         onClientDisconnection(&hub);
         onClientMessage(&hub);
-
-        if (hub.listen(cfg::server_port)) {
+        if (hub.listen(cfg::server_host.c_str(), cfg::server_port)) {
             runningState = 1;
             Logger::print("\n");
-            Logger::info("Server is listening on port ", cfg::server_port);
+            Logger::info("Server is listening on ", cfg::server_host, ":", cfg::server_port);
             hub.run();
         } else {
             runningState = 0;
-            Logger::error("Server couldn't listen on port ", cfg::server_port);
+            Logger::error("Server couldn't listen on ", cfg::server_host, ":", cfg::server_port);
             Logger::error("Close out of applications running on the same port or run this with root priveleges.");
             Logger::print("Press any key to exit...\n");
         }
@@ -32,8 +33,9 @@ void Server::onClientConnection(uWS::Hub *hub) {
             return;
         }
         // allocating player because it needs to exist outside of this loop
-        Player *player = new Player(ws);
-        player->server = this;
+        Player *player = new Player(this);
+        player->socket = ws;
+        player->packetHandler = PacketHandler(player);
         ws->setUserData(player);
         clients.push_back(player);
 
@@ -45,8 +47,9 @@ void Server::onClientDisconnection(uWS::Hub *hub) {
         code;
         message;
         length;
-        ((Player*)ws->getUserData())->onDisconnection();
-        //ws->setUserData(nullptr);
+        Player *player = (Player*)ws->getUserData();
+        player->onDisconnection();
+        delete player->protocol;
         --connections;
         Logger::debug("Disconnection made");
     });
@@ -68,7 +71,13 @@ void Server::onClientMessage(uWS::Hub *hub) {
 }
 void Server::end() {
     Logger::warn("Stopping uWS Server...");
-    for (Player *player : clients)
-        player->socket->close();
+    for (Player *player : clients) {
+        delete player->protocol;
+        delete player;
+    }
+    for (Minion *minion : minions)
+        delete minion;
+    for (PlayerBot *playerBot : playerBots)
+        delete playerBot;
     connectionThread.detach();
 }

@@ -25,7 +25,7 @@ public:
 
             unsigned char flags = 0; // extendedFlag
 
-            if (entity->isSpiked)
+            if (entity->state & isSpiked)
                 flags |= 0x01; // has spikes on outline
             if (true)
                 flags |= 0x02; // has color
@@ -35,7 +35,7 @@ public:
                 if (entity->owner()->cellName() != "")
                     flags |= 0x08;
             }
-            if (entity->isAgitated)
+            if (entity->state & isAgitated)
                 flags |= 0x10;
             if (entity->type == CellType::EJECTED)
                 flags |= 0x20;
@@ -63,11 +63,11 @@ public:
 
             unsigned char flags = 0; // extendedFlag
 
-            if (entity->isSpiked)
+            if (entity->state & isSpiked)
                 flags |= 0x01; // virus
             if (entity->type == CellType::PLAYERCELL)
                 flags |= 0x02; // has color
-            if (entity->isAgitated)
+            if (entity->state & isAgitated)
                 flags |= 0x10;
             if (entity->type == CellType::EJECTED)
                 flags |= 0x20;

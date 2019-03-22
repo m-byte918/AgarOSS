@@ -2,7 +2,7 @@
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
 
-Virus::Virus(const Vec2 &pos, double radius, const Color &color) noexcept :
+Virus::Virus(const Vec2 &pos, float radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::VIRUS;
 
@@ -10,10 +10,10 @@ Virus::Virus(const Vec2 &pos, double radius, const Color &color) noexcept :
     canEat = cfg::virus_canEat;
     avoidSpawningOn = cfg::virus_avoidSpawningOn;
 
-    isSpiked = cfg::virus_isSpiked;
-    isAgitated = cfg::virus_isAgitated;
+    if (cfg::virus_isSpiked)   state |= isSpiked;
+    if (cfg::virus_isAgitated) state |= isAgitated;
 }
-void Virus::split(double angle, double radius) noexcept {
+void Virus::split(double angle, float radius) noexcept {
     // Set radius of splitting virus
     setRadius(radius);
 
@@ -22,7 +22,7 @@ void Virus::split(double angle, double radius) noexcept {
     newCell->setVelocity(cfg::virus_initialAcceleration, angle);
     newCell->setCreator(newCell->nodeId());
 }
-void Virus::onDespawned() const noexcept {
+void Virus::onDespawned() noexcept {
     if (map::entities[type].size() < cfg::virus_startAmount)
         map::spawn<Virus>(randomPosition(), cfg::virus_baseRadius, cfg::virus_color);
 }
@@ -32,7 +32,7 @@ void Virus::consume(e_ptr &prey) noexcept {
 
     Entity::consume(prey);
     if (_radius >= cfg::virus_maxRadius)
-        split(prey->velocity().angle(), cfg::virus_baseRadius);
+        split(_acceleration < 1 ? prey->velocity().angle() : 0, cfg::virus_baseRadius);
 }
 Virus::~Virus() {
 }

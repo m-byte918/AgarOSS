@@ -19,7 +19,7 @@ public:
     /// \brief Standard console colors
     ////////////////////////////////////////
     enum Color {
-        Black=0, Blue, Green, Aqua, Red, Purple, Yellow, White, Gray, LightBlue, 
+        Black=0, Blue, Green, Aqua, Red, Purple, Yellow, White, Gray, LightBlue,
         LightGreen, LightAqua, LightRed, LightPurple, LightYellow, BrightWhite
     };
 
@@ -127,7 +127,7 @@ public:
             #ifdef _WIN32
                 SetConsoleTextAttribute(hOut, csbi.wAttributes);
             #else
-                std::cout << "\e[0m\n";
+                std::cout << "\e[0m";
             #endif // _WIN32
         }
     }
@@ -137,8 +137,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::PRINT
     ////////////////////////////////////////////////////////////////////////
-    template<typename ...Args> static void print(Args&&... args) { 
-        write(&PRINT, true, true, args...); 
+    template<typename ...Args> static void print(Args&&... args) {
+        write(&PRINT, true, true, args...);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -146,8 +146,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::INFO
     ///////////////////////////////////////////////////////////////////////
-    template<typename ...Args> static void info(Args&&... args) { 
-        write(&INFO, true, true, args...); 
+    template<typename ...Args> static void info(Args&&... args) {
+        write(&INFO, true, true, args...);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -155,8 +155,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::WARN
     ///////////////////////////////////////////////////////////////////////
-    template<typename ...Args> static void warn(Args&&... args) { 
-        write(&WARN, true, true, args...); 
+    template<typename ...Args> static void warn(Args&&... args) {
+        write(&WARN, true, true, args...);
     }
 
     ///////////////////////////////////////////////////////////////////////
@@ -164,8 +164,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::ERR
     //////////////////////////////////////////////////////////////////////
-    template<typename ...Args> static void error(Args&&... args) { 
-        write(&ERR, true, true, args...); 
+    template<typename ...Args> static void error(Args&&... args) {
+        write(&ERR, true, true, args...);
     }
 
     /////////////////////////////////////////////////////////////////////////
@@ -173,8 +173,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::FATAL
     ////////////////////////////////////////////////////////////////////////
-    template<typename ...Args> static void fatal(Args&&... args) { 
-        write(&FATAL, true, true, args...); 
+    template<typename ...Args> static void fatal(Args&&... args) {
+        write(&FATAL, true, true, args...);
     }
 
     /////////////////////////////////////////////////////////////////////////
@@ -182,8 +182,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::DEBUG
     ////////////////////////////////////////////////////////////////////////
-    template<typename ...Args> static void debug(Args&&... args) { 
-        write(&DEBUG, true, true, args...); 
+    template<typename ...Args> static void debug(Args&&... args) {
+        write(&DEBUG, true, true, args...);
     }
 
     /////////////////////////////////////////////////////////////
@@ -191,8 +191,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::PRINT
     ////////////////////////////////////////////////////////////
-    template<typename ...Args> static void logMessage(Args&&... args) { 
-        write(&PRINT, true, false, args...); 
+    template<typename ...Args> static void logMessage(Args&&... args) {
+        write(&PRINT, true, false, args...);
     }
 
     ///////////////////////////////////////////////////////////
@@ -200,8 +200,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::ERR
     //////////////////////////////////////////////////////////
-    template<typename ...Args> static void logError(Args&&... args) { 
-        write(&ERR, true, false, args...); 
+    template<typename ...Args> static void logError(Args&&... args) {
+        write(&ERR, true, false, args...);
     }
 
     /////////////////////////////////////////////////////////////
@@ -209,8 +209,8 @@ public:
     /// \param Args... Arguments to write
     /// \see Logger::DEBUG
     ////////////////////////////////////////////////////////////
-    template<typename ...Args> static void logDebug(Args&&... args) { 
-        write(&DEBUG, true, false, args...); 
+    template<typename ...Args> static void logDebug(Args&&... args) {
+        write(&DEBUG, true, false, args...);
     }
 
     ////////////////////////////////////////////////////////////

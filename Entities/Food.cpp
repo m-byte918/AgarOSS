@@ -2,7 +2,7 @@
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
 
-Food::Food(const Vec2 &pos, double radius, const Color &color) noexcept :
+Food::Food(const Vec2 &pos, float radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::FOOD;
 
@@ -10,8 +10,8 @@ Food::Food(const Vec2 &pos, double radius, const Color &color) noexcept :
     canEat = cfg::food_canEat;
     avoidSpawningOn = cfg::food_avoidSpawningOn;
 
-    isSpiked = cfg::food_isSpiked;
-    isAgitated = cfg::food_isAgitated;
+    if (cfg::food_isSpiked)   state |= isSpiked;
+    if (cfg::food_isAgitated) state |= isAgitated;
 }
 
 void Food::update(unsigned long long tick) noexcept {
@@ -22,9 +22,9 @@ void Food::update(unsigned long long tick) noexcept {
     if ((tick % 1500) == 0 && rand(0, 10) == 10)
         setMass(_mass + 1); // setMass might be faster in this case
 }
-void Food::onDespawned() const noexcept {
+void Food::onDespawned() noexcept {
     // Vanilla servers spawn new food as soon as one is eaten, so lets do that
-    if (map::entities[CellType::FOOD].size() < cfg::food_maxAmount)
+    if (map::entities[CellType::FOOD].size() < cfg::food_startAmount)
         map::spawn<Food>(randomPosition(), cfg::food_baseRadius, randomColor());
 }
 Food::~Food() {

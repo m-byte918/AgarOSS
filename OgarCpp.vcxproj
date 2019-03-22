@@ -121,6 +121,7 @@
     <ClCompile Include="Entities\MotherCell.cpp" />
     <ClCompile Include="Entities\PlayerCell.cpp" />
     <ClCompile Include="Entities\Virus.cpp" />
+    <ClCompile Include="Player\Minion.cpp" />
     <ClCompile Include="Modules\Commands.cpp" />
     <ClCompile Include="Entities\Entity.cpp" />
     <ClCompile Include="Game\Map.cpp" />
@@ -132,6 +133,7 @@
     <ClCompile Include="Game\Game.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="modules\Logger.cpp" />
+    <ClCompile Include="Player\PlayerBot.cpp" />
     <ClCompile Include="Protocol\Protocol.cpp" />
     <ClCompile Include="Settings.cpp" />
   </ItemGroup>
@@ -143,6 +145,7 @@
     <ClInclude Include="Entities\MotherCell.hpp" />
     <ClInclude Include="Entities\PlayerCell.hpp" />
     <ClInclude Include="Entities\Virus.hpp" />
+    <ClInclude Include="Player\Minion.hpp" />
     <ClInclude Include="Modules\Commands.hpp" />
     <ClInclude Include="Entities\Entity.hpp" />
     <ClInclude Include="Game\Game.hpp" />
@@ -155,6 +158,7 @@
     <ClInclude Include="Packets\Protocol_1.hpp" />
     <ClInclude Include="Player\Player.hpp" />
     <ClInclude Include="Modules\Utils.hpp" />
+    <ClInclude Include="Player\PlayerBot.hpp" />
     <ClInclude Include="Protocol\Protocol.hpp" />
     <ClInclude Include="Protocol\Protocol_10.hpp" />
     <ClInclude Include="Protocol\Protocol_11.hpp" />

@@ -1,4 +1,38 @@
 # Changelog
+### v1.07
+- Added `server_host` configuration
+- Implemented minions with Q controls
+- Replaced doubles with floats where they were more appropriate
+- Switched to using flags for entity states rather than multiple booleans
+- Reorganized some methods for `Entity` class
+- Added vanilla feature where orphaned playercells snap back to their last coordinate when pushed away
+- Fixed bug where food and viruses spawn after one was eaten until the max amount was reached
+- Fixed bug where players could sometimes auto split over the max cell amount
+- Significantly improved virus explosions
+- Fixed crash that would happen when orphaned playercells were split
+- Added vanilla feature where playercells under 625 mass cannot grow from playercells at 18 mass or below
+- Fixed some memory management issues with entities
+- Added vanilla feature where viruses splitting from stationary ejected mass will shoot to the right
+- Small refactoring of `Game` class and added `updateTime` for monitoring server performance
+- Fixed seemingly random crashes from updating playercells
+- Cleaned up `Map` class
+- Fixed food being able to spawn near ejected mass
+- Removed "An unnamed cell" as the default name for players
+- Fixed ghosting caused by updating visible nodes incorrectly
+- Added vanilla feature where orphaned playercells remain on the map for all eternity
+- Fixed excess newlines in console output on linux
+- Fixed crash on server shutdown due to players being deleted before entities
+- Refactored and reogranized `Commands` class
+- Added aliases for some commands
+- Changed command format from `command(args...)` to `command <args>...` and removed case sensitivity
+- Added ability to execute player commands on groups of players using `-p`, `-b`, and `-m` flags
+- Reformatted `help` command
+- Added `pause`, `minion`, `setname`, `setskin`, `spawnmass`, `explode`, `speed`, `color`, `split`, and `replace` commands
+- Added `install_uws.sh` to aid in importing the uWebSockets library for linux
+- Fixed compiling on Windows [#10](https://github.com/Megabyte918/OgarCpp/issues/10)
+- Spelling & grammar corrections
+- Other optimizations and performance improvements
+---
 ### v0.75
 - Rewrote and reorganized how packets are handled and interpreted
 - Fixed bug where uWS server would never start if it wasn't fast enough

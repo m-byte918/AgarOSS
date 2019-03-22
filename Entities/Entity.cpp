@@ -1,4 +1,5 @@
 #include "Entity.hpp"
+#include <sstream> // Entity::toString()
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
 
@@ -9,15 +10,15 @@ void Entity::setOwner(Player *owner) noexcept {
 }
 void Entity::setColor(const Color &color) noexcept {
     _color = color;
-    needsUpdate = true;
+    state |= needsUpdate;
 }
 void Entity::setPosition(const Vec2 &position, bool validate) noexcept {
-    needsUpdate = true;
+    state |= needsUpdate;
     _position = position;
 
     if (!validate) return; // No need
     
-    const double hr = _radius * 0.5f; // half radius
+    const float hr = _radius * 0.5f; // half radius
 
     // Validate left
     double maxIndent = map::bounds().left() + hr;
@@ -41,7 +42,7 @@ void Entity::setPosition(const Vec2 &position, bool validate) noexcept {
         _velocity.y = -_velocity.y;
     }
 }
-void Entity::setVelocity(double acceleration, double angle) noexcept {
+void Entity::setVelocity(float acceleration, double angle) noexcept {
     _acceleration = acceleration;
     _velocity = {
         std::cos(angle),
@@ -49,18 +50,21 @@ void Entity::setVelocity(double acceleration, double angle) noexcept {
     };
     map::acceleratingEntities[_nodeId] = shared;
 }
-void Entity::setMass(double mass) noexcept {
+void Entity::setMass(float mass) noexcept {
     _mass = mass;
     _radius = toRadius(mass);
-    needsUpdate = true;
+    state |= needsUpdate;
 }
-void Entity::setRadius(double radius) noexcept {
+void Entity::setRadius(float radius) noexcept {
     _radius = radius;
     _mass = toMass(radius);
-    needsUpdate = true;
+    state |= needsUpdate;
 }
 void Entity::setCreator(unsigned int id) noexcept {
     _creatorId = id;
+}
+void Entity::setKiller(unsigned int id) noexcept {
+    _killerId = id;
 }
 void Entity::setBirthTick(Game *_game) noexcept {
     game = _game;
@@ -81,16 +85,16 @@ const Vec2 &Entity::position() const noexcept {
 const Vec2 &Entity::velocity() const noexcept {
     return _velocity;
 }
-double Entity::mass() const noexcept {
+float Entity::mass() const noexcept {
     return _mass;
 }
-double Entity::radius() const noexcept {
+float Entity::radius() const noexcept {
     return _radius;
 }
-double Entity::acceleration() const noexcept {
+float Entity::acceleration() const noexcept {
     return _acceleration;
 }
-double Entity::radiusSquared() const noexcept {
+float Entity::radiusSquared() const noexcept {
     return _radius * _radius;
 }
 unsigned int Entity::nodeId() const noexcept {
@@ -109,7 +113,7 @@ unsigned long long Entity::age() const noexcept {
 //************************* MISC *************************//
 
 bool Entity::decelerate() noexcept {
-    if (isRemoved) {
+    if (state & isRemoved) {
         //logVerbose(Entity could not be decelerated because it is removed.);
         _acceleration = 0;
         return false;
@@ -119,9 +123,8 @@ bool Entity::decelerate() noexcept {
         _acceleration = 0;
         return false;
     }
-
     // decelerate by X units per tick
-    double deceleration = _acceleration / cfg::entity_decelerationPerTick;
+    float deceleration = _acceleration / cfg::entity_decelerationPerTick;
     _acceleration -= deceleration;
     
     // https://gist.github.com/Megabyte918/0b921e69f9d84b3ea7b8fdebef4f6812#file-gameconfiguration-json-L142
@@ -134,15 +137,15 @@ bool Entity::intersects(e_ptr other) const noexcept {
     return intersects(other->_position, other->_radius);
 }
 
-bool Entity::intersects(const Vec2 &pos, double radius) const noexcept {
-    double rs = _radius + radius;
+bool Entity::intersects(const Vec2 &pos, float radius) const noexcept {
+    float rs = _radius + radius;
     return (_position - pos).squared() < (rs * rs);
 }
 void Entity::move() noexcept {
 }
 void Entity::pop() noexcept {
 }
-void Entity::split(double angle, double radius) noexcept {
+void Entity::split(double angle, float radius) noexcept {
     angle, radius;
 }
 void Entity::autoSplit() noexcept {
@@ -150,25 +153,70 @@ void Entity::autoSplit() noexcept {
 void Entity::update(unsigned long long tick) noexcept {
     tick;
 }
-void Entity::onDespawned() const noexcept  {
+void Entity::onDespawned() noexcept  {
 }
-void Entity::consume(e_ptr &prey) noexcept {
-    // Not allowed to eat or is already removed
-    if (!(canEat & prey->flag) || prey->isRemoved)
+void Entity::collideWith(Entity *other) noexcept {
+    if (!shared || !other->shared || state & isRemoved || 
+        other->state & isRemoved || !intersects(other->shared))
         return;
 
+    // Determine if predator should become prey
+    bool isPredatorSmaller = _radius <= other->radius() * cfg::entity_minEatSizeMult;
+
+    // Resolve rigid collisions
+    if (_creatorId != 0 && other->creator() != 0 && type == other->type) {
+        // Ejected -> resolve collision immediately
+        if (type == CellType::EJECTED) {
+            map::resolveCollision(shared, other->shared);
+            // Set velocity again to start chain reaction
+            if (other->acceleration() == 0)
+                other->setVelocity(1.0f, position().angle());
+            return;
+        }
+        // Playercells from same owner
+        else if (_creatorId == other->creator()) {
+            if (!(state & ignoreCollision) || !(other->state & ignoreCollision)) {
+                // Just split -> resolve collision after 15 ticks
+                if (age() > cfg::player_collisionIgnoreTime &&
+                    other->age() > cfg::player_collisionIgnoreTime) {
+                    map::resolveCollision(shared, other->shared);
+                    return;
+                }
+                return; // Merging -> do not eat or resolve collision
+            }
+        }
+        // Viruses & Mothercells -> do not eat or resolve collision
+        else if (type != CellType::PLAYERCELL && _owner == other->owner())
+            return;
+        // Playercells from different owners -> do not consume
+        // if predator is smaller
+        else if (isPredatorSmaller)
+            return;
+    }
+    // Resolve eat collisions
+    e_ptr predator = shared;
+    e_ptr prey = other->shared;
+    if (isPredatorSmaller) {
+        predator = prey;
+        prey = shared;
+    }
+    // Not allowed to eat or is already removed
+    if (!(predator->canEat & prey->flag) || prey->state & isRemoved)
+        return;
     // https://gist.github.com/Megabyte918/0b921e69f9d84b3ea7b8fdebef4f6812#file-gameconfiguration-json-L178
     // assuming "percentageOfCellToSquash" is the range required to eat another cell
-    double range = _radius - cfg::entity_minEatOverlap * prey->_radius;
-    if ((_position - prey->_position).squared() >= range * range)
+    float range = predator->_radius - cfg::entity_minEatOverlap * prey->_radius;
+    if ((predator->_position - prey->_position).squared() >= range * range)
         return; // Not close enough to eat
-
-    prey->_killerId = _nodeId; // prey was killed by this
+    predator->consume(prey);
+}
+void Entity::consume(e_ptr &prey) noexcept {
+    prey->setKiller(_nodeId); // prey was killed by this
     setMass(_mass + prey->_mass); // add prey's mass to this
-    map::despawn(prey); // remove prey from map
+    map::despawn(prey.get()); // remove prey from map
 }
 // debugging purposes
-std::string Entity::toString() const noexcept {
+std::string Entity::toString() noexcept {
     std::stringstream ss;
 
     ss << "type: " << type
@@ -176,12 +224,22 @@ std::string Entity::toString() const noexcept {
         << "\ncanEat: " << +canEat
         << "\navoidSpawningOn: " << +avoidSpawningOn
 
-        << "\n\nisSpiked: " << isSpiked
-        << "\nisAgitated: " << isAgitated
-        << "\nisRemoved: " << isRemoved
-        << "\nneedsUpdate: " << needsUpdate
+        << "\nisSpiked: " << (state & isSpiked)
+        << "\nisAgitated: " << (state & isAgitated)
+        << "\nisRemoved: " << (state & isRemoved)
+        << "\nneedsUpdate: " << (state & needsUpdate)
+        << "\nignoreCollision: " << (state & ignoreCollision)
 
-        << "\nobj: {\n"
+        << "\n\nmouseCache: " << mouseCache.toString()
+        << "\ncellAmountCache: " << cellAmountCache
+        << "\nspeedMultiplier: " << speedMultiplier
+
+        << "\n\nshared: {"
+        << "\n    unique(): " << 0/*shared.unique()*/
+        << "\n    use_count(): " << shared.use_count()
+        << "\n}"
+
+        << "\n\nobj: {\n"
         << "\n    data: " << std::any_cast<Entity*>(obj.data)
         << "\n    bound: {"
         << "\n        x():" << obj.bound.x()
@@ -197,30 +255,27 @@ std::string Entity::toString() const noexcept {
         << "\n    }"
         << "\n}"
 
-        << "\nnodeId(): " << nodeId()
-        << "\nkillerId(): " << killerId()
-        << "\ncreator(): " << creator()
-        << "\ngetOwner(): " << owner()
-        << "\ngetPosition(): " << position().toString()
-        << "\ngetColor(): " << const_cast<Color&>(color()).toString()
-        << "\ngetMass(): " << mass()
-        << "\ngetRadius(): " << radius()
+        << "\n\nowner(): " << owner()
+        << "\ncolor(): " << const_cast<Color&>(color()).toString()
+        << "\nposition(): " << position().toString()
+        << "\nvelocity(): " << velocity().toString()
+        << "\nmass(): " << mass()
+        << "\nradius(): " << radius()
+        << "\nacceleration(): " << acceleration()
         << "\nradiusSquared(): " << radiusSquared()
+        << "\nnodeId(): " << nodeId()
+        << "\ncreator(): " << creator()
+        << "\nkillerId(): " << killerId()
         << "\nage(): " << age()
-        << "\nshared: {"
-        << "\n    unique(): " << 0/*shared.unique()*/
-        << "\n    use_count(): " << shared.use_count()
-        << "\n}"
-        << "\n_velocity: " << _velocity.toString()
-        << "\n_acceleration: " << _acceleration
-        << "\nbirthTick: " << birthTick
-        << "\ngame: " << game;
-         
 
+        << "\n\ndecelerate(): " << decelerate()
+
+        << "\n\nbirthTick: " << birthTick
+        << "\ngame: " << game;
     return ss.str();
 }
 
-Entity::Entity(const Vec2 &pos, double radius, const Color &color) noexcept {
+Entity::Entity(const Vec2 &pos, float radius, const Color &color) noexcept {
     setPosition(pos);
     setRadius(radius);
     setColor(color);

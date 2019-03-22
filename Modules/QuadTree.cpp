@@ -192,8 +192,10 @@ void QuadTree::clear() noexcept {
         objects.clear();
     }
     if (!isLeaf) {
-        for (QuadTree *child : children)
+        for (QuadTree *child : children) {
             child->clear();
+            delete child;
+        }
         isLeaf = true;
     }
 }
@@ -227,7 +229,8 @@ void QuadTree::discardEmptyBuckets() {
             if (!child->isLeaf || !child->objects.empty())
                 return;
     }
-    if (clear(), parent != nullptr)
+    clear();
+    if (parent != nullptr)
         parent->discardEmptyBuckets();
 }
 
@@ -248,8 +251,4 @@ QuadTree *QuadTree::getChild(const Rect &bound) const noexcept {
 
 QuadTree::~QuadTree() {
     clear();
-    if (children[0]) delete children[0];
-    if (children[1]) delete children[1];
-    if (children[2]) delete children[2];
-    if (children[3]) delete children[3];
 }

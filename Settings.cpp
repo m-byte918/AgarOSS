@@ -10,13 +10,12 @@ json config = {
     }},
 
     { "server", {
+        { "host", "127.0.0.1" },
         { "port", 8080 },
-        { "name", "MultiOgar-Cpp" },
+        { "name", "OgarCpp" },
         { "maxConnections", 500 },
-        { "maxSupportedProtocol", 18 },
-        { "minSupportedProtocol", 1 },
-        { "loggerMaxSeverity", 5 },
-        { "loggerMaxFileSeverity", 5 },
+        { "maxSupportedProtocol", 20 },
+        { "minSupportedProtocol", 1 }
     }},
 
     { "game", {
@@ -55,8 +54,8 @@ json config = {
 
     { "playerCell", {
         { "baseRadius", 32 },
-        { "maxRadius", 1500 },
-        { "minRadiusToSplit", 60 },
+        { "maxMass", 22500 },
+        { "minMassToSplit", 36 },
         { "minRadiusToEject", 59.16079783 },
         { "minVirusSplitMass", 19.36 }, // size 44
         { "ejectAngleVariation", 0.3 },
@@ -78,7 +77,7 @@ json config = {
         { "isSpiked", false },
         { "isAgitated", false },
         { "canEat", nothing },
-        { "avoidSpawningOn", nothing }
+        { "avoidSpawningOn", ejected }
     }},
 
     { "virus", {

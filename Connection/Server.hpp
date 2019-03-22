@@ -5,8 +5,13 @@
 #include <thread>
 
 class Player;
+class Minion;
+class PlayerBot;
 struct Server {
     std::vector<Player*> clients;
+    std::vector<Minion*> minions;
+    std::vector<PlayerBot*> playerBots;
+
     unsigned long long connections = 0;
     int runningState = -1;
 

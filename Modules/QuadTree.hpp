@@ -29,7 +29,7 @@ public:
     double bottom() const noexcept;
 
     bool contains(const Rect &other) const noexcept;
-    inline bool intersects(const Rect &other) const noexcept;
+    bool intersects(const Rect &other) const noexcept;
 
 private:
     double _x          = 0;

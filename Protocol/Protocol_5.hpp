@@ -22,11 +22,11 @@ public:
 
             unsigned char flags = 0; // extendedFlag
 
-            if (entity->isSpiked)
+            if (entity->state & isSpiked)
                 flags |= 0x01; // has spikes on outline
             if (entity->type == CellType::PLAYERCELL && entity->owner()->skinName() != "")
                 flags |= 0x04;
-            if (entity->isAgitated)
+            if (entity->state & isAgitated)
                 flags |= 0x10;
             if (entity->type == CellType::EJECTED)
                 flags |= 0x20;
@@ -52,9 +52,9 @@ public:
 
             unsigned char flags = 0; // extendedFlag
 
-            if (entity->isSpiked)
+            if (entity->state & isSpiked)
                 flags |= 0x01; // has spikes on outline
-            if (entity->isAgitated)
+            if (entity->state & isAgitated)
                 flags |= 0x10;
             if (entity->type == CellType::EJECTED)
                 flags |= 0x20;

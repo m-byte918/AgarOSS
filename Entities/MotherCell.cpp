@@ -2,7 +2,7 @@
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
 
-MotherCell::MotherCell(const Vec2 &pos, double radius, const Color &color) noexcept :
+MotherCell::MotherCell(const Vec2 &pos, float radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::MOTHERCELL;
 
@@ -10,10 +10,10 @@ MotherCell::MotherCell(const Vec2 &pos, double radius, const Color &color) noexc
     canEat = cfg::motherCell_canEat;
     avoidSpawningOn = cfg::motherCell_avoidSpawningOn;
 
-    isSpiked = cfg::motherCell_isSpiked;
-    isAgitated = cfg::motherCell_isAgitated;
+    if (cfg::motherCell_isSpiked)   state |= isSpiked;
+    if (cfg::motherCell_isAgitated) state |= isAgitated;
 }
-void MotherCell::onDespawned() const noexcept {
+void MotherCell::onDespawned() noexcept {
     // Spawn a new one immediately
     if (map::entities[CellType::MOTHERCELL].size() < cfg::motherCell_startAmount)
         map::spawn<MotherCell>(randomPosition(), cfg::motherCell_baseRadius, cfg::motherCell_color);

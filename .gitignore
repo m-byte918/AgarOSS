@@ -4,3 +4,5 @@
 /Debug
 OgarCPP
 /OgarCpp.vcxproj.user
+/Release
+/Run/vcpkg

@@ -1,4 +1,5 @@
 #pragma once
+#include "../Game/Game.hpp"
 #include "../Modules/Utils.hpp"
 #include "../Modules/QuadTree.hpp"
 
@@ -20,30 +21,32 @@ class Player;
 class Entity {
 public:
     // Typing
-    int           type            = -1; // CellType this entity is classified as
+    int           type            = -1;      // CellType this entity is classified as
     unsigned char flag            = nothing; // Group this entity belongs to
     unsigned char canEat          = nothing; // Cell types this entity can eat
     unsigned char avoidSpawningOn = nothing; // Cell types to be checked for safe spawn
 
     // States
-    bool isSpiked        = false; // Cell has spikes on its outline
-    bool isAgitated      = false; // Cell has waves on its outline
-    bool isRemoved       = false; // Cell was removed from map
-    bool needsUpdate     = true;  // Cell needs updating on client side
-    bool ignoreCollision = false; // Whether or not to ignore collision with self
+    unsigned char state = 0x00;
+
+    // Cached (for when owner disconnects)
+    Vec2   mouseCache { 0, 0 };
+    size_t cellAmountCache = 1;
 
     // Miscc
     e_ptr shared; // Shared pointer for this entity
     Collidable obj; // Object to insert into quadTree
+    unsigned int speedMultiplier = cfg::playerCell_speedMultiplier; // Movement
 
     // Setters
     void setOwner(Player *owner) noexcept;
     void setColor(const Color &color) noexcept;
     void setPosition(const Vec2 &position, bool validate = false) noexcept;
-    void setVelocity(double velocity, double angle) noexcept;
-    void setMass(double mass) noexcept;
-    void setRadius(double radius) noexcept;
+    void setVelocity(float velocity, double angle) noexcept;
+    void setMass(float mass) noexcept;
+    void setRadius(float radius) noexcept;
     void setCreator(unsigned int id) noexcept;
+    void setKiller(unsigned int id) noexcept;
     void setBirthTick(Game *_game) noexcept;
 
     // Getters
@@ -51,10 +54,10 @@ public:
     const Color &color() const noexcept;
     const Vec2 &position() const noexcept;
     const Vec2 &velocity() const noexcept;
-    double mass() const noexcept;
-    double radius() const noexcept;
-    double acceleration() const noexcept;
-    double radiusSquared() const noexcept;
+    float mass() const noexcept;
+    float radius() const noexcept;
+    float acceleration() const noexcept;
+    float radiusSquared() const noexcept;
     unsigned int nodeId() const noexcept;
     unsigned int creator() const noexcept;
     unsigned int killerId() const noexcept;
@@ -63,17 +66,18 @@ public:
     // Misc
     bool decelerate() noexcept;
     bool intersects(e_ptr other) const noexcept;
-    bool intersects(const Vec2 &pos, double radius) const noexcept;
+    bool intersects(const Vec2 &pos, float radius) const noexcept;
     virtual void move() noexcept;
     virtual void pop() noexcept;
-    virtual void split(double angle, double radius) noexcept;
+    virtual void split(double angle, float radius) noexcept;
     virtual void autoSplit() noexcept;
     virtual void update(unsigned long long tick) noexcept;
-    virtual void onDespawned() const noexcept;
+    virtual void onDespawned() noexcept;
+    virtual void collideWith(Entity *other) noexcept;
     virtual void consume(e_ptr &_prey) noexcept;
-    std::string toString() const noexcept;
+    std::string toString() noexcept;
 
-    Entity(const Vec2&, double radius, const Color&) noexcept;
+    Entity(const Vec2&, float radius, const Color&) noexcept;
     virtual ~Entity();
 
 protected:
@@ -81,9 +85,9 @@ protected:
     Vec2  _velocity{ 1, 0 };
     Vec2  _position{ 0, 0 };
 
-    double _mass         = 0;
-    double _radius       = 0;
-    double _acceleration = 0;
+    float _mass         = 0;
+    float _radius       = 0;
+    float _acceleration = 0;
 
     unsigned int      _nodeId    = 0;
     unsigned int      _killerId  = 0;

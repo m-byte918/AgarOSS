@@ -3,6 +3,6 @@
 
 class Ejected : public Entity {
 public:
-    Ejected(const Vec2&, double radius, const Color&) noexcept;
+    Ejected(const Vec2&, float radius, const Color&) noexcept;
     ~Ejected();
 };

@@ -1,8 +1,9 @@
 #include "Game.hpp"
 #include "Map.hpp"
 #include "../Player/Player.hpp"
+#include "../Player/Minion.hpp"
+#include "../Player/PlayerBot.hpp"
 #include "../Modules/Logger.hpp"
-#include "../Modules/Commands.hpp"
 #include <future>
 #include <chrono>
 #include <time.h>
@@ -23,54 +24,63 @@ Game::Game() {
         std::cin.get();
         return;
     }
+    map::init(this);           // Initialize map
+    commands = Commands(this); // Command handler
 
-    map::init(this); // Initialize map
-    Commands commands(this); // Command handler
     std::string userInput;
+    std::future<std::string&> future;
 
-    milliseconds fixed_timestep = (milliseconds)cfg::game_timeStep;
-    auto previous = high_resolution_clock::now();
-    nanoseconds lag = 0ns;
+    nanoseconds  lag      = 0ns;
+    milliseconds timeStep = (milliseconds)cfg::game_timeStep;
+    auto         previous = high_resolution_clock::now();
+    auto         current  = previous;
+    auto         elapsed  = current - previous;
 
-    while (running) {
+    while (state != GameState::ENDED) {
         // Get user input without blocking thread
-        std::future<std::string&> future = std::async([&]()->std::string& {
+        future = std::async([&]()->std::string& {
             Logger::print("> ");
             std::getline(std::cin, userInput);
             return userInput;
         });
         // Main Loop
-        while (future.wait_for(fixed_timestep) == std::future_status::timeout) {
-            auto current = high_resolution_clock::now();
-            auto elapsed = current - previous;
+        while (future.wait_for(timeStep) == std::future_status::timeout) {
+            current  = high_resolution_clock::now();
+            elapsed  = current - previous;
             previous = current;
-            lag += elapsed;
+            lag     += elapsed;
 
-            //processInput();
-
-            while (lag >= fixed_timestep)
-                //update();
-                lag -= fixed_timestep;
+            while (lag >= timeStep)
+                lag -= timeStep;
 
             mainLoop();
         }
-        commands.handleUserInput(future.get());
+        commands.parse(future.get());
     }
 }
+steady_clock::time_point start;
+size_t i;
+//size_t size;
 
 void Game::mainLoop() {
-    ++tickCount;
-    //steady_clock::time_point begin = steady_clock::now();
+    if (state == GameState::PAUSED)
+        return;
 
-    // Update players
-    for (Player *client : server.clients)
-        client->update(tickCount);
+    ++tickCount;
+    start = steady_clock::now();
+    
+    // Update non-entities
+    for (i = 0; i < server.clients.size(); ++i)
+        server.clients[i]->update(tickCount);
+    for (i = 0; i < server.minions.size(); ++i)
+        server.minions[i]->update(tickCount);
+    for (i = 0; i < server.playerBots.size(); ++i)
+        server.playerBots[i]->update(tickCount);
 
     // Update entities
     map::update(tickCount);
 
-    //steady_clock::time_point end = steady_clock::now();
-    //Logger::debug("ligma = ", duration_cast<microseconds>(end - begin).count() / 100.0);
+    updateTime = duration_cast<milliseconds>(steady_clock::now() - start).count();
 }
 
 // Load settings into memory as it is more efficient than
@@ -81,6 +91,7 @@ void Game::loadConfig() {
     cfg::logger_printTextColor = static_cast<Logger::Color>((int)config["logger"]["printTextColor"]);
     cfg::logger_backgroundColor = static_cast<Logger::Color>((int)config["logger"]["backgroundColor"]);
 
+    cfg::server_host = config["server"]["host"].get<std::string>();
     cfg::server_port = config["server"]["port"];
     cfg::server_name = config["server"]["name"].get<std::string>();
     cfg::server_maxConnections = config["server"]["maxConnections"];
@@ -111,8 +122,8 @@ void Game::loadConfig() {
     cfg::player_collisionIgnoreTime = config["player"]["collisionIgnoreTime"];
 
     cfg::playerCell_baseRadius = config["playerCell"]["baseRadius"];
-    cfg::playerCell_maxRadius = config["playerCell"]["maxRadius"];
-    cfg::playerCell_minRadiusToSplit = config["playerCell"]["minRadiusToSplit"];
+    cfg::playerCell_maxMass = config["playerCell"]["maxMass"];
+    cfg::playerCell_minMassToSplit = config["playerCell"]["minMassToSplit"];
     cfg::playerCell_minRadiusToEject = config["playerCell"]["minRadiusToEject"];
     cfg::playerCell_minVirusSplitMass = config["playerCell"]["minVirusSplitMass"];
     cfg::playerCell_ejectAngleVariation = config["playerCell"]["ejectAngleVariation"];
@@ -182,8 +193,8 @@ void Game::startLogger() {
 }
 
 Game::~Game() {
-    server.end(); // Stop uWS server
-    map::clear(); // Clear map
+    map::cleanup(); // Clear map
+    server.end();   // Stop uWS server
 
     // End logger
     Logger::warn("Saving log...");
@@ -197,6 +208,7 @@ int logger_maxFileSeverity;
 Logger::Color logger_printTextColor;
 Logger::Color logger_backgroundColor;
 
+std::string server_host;
 short server_port;
 std::string server_name;
 unsigned long long server_maxConnections;
@@ -210,39 +222,38 @@ double game_mapHeight;
 unsigned int game_quadTreeLeafCapacity;
 unsigned int game_quadTreeMaxDepth;
 
-double entity_decelerationPerTick;
-double entity_minAcceleration;
-double entity_minEatOverlap;
-double entity_minEatSizeMult;
-double entity_restitutionCoefficient;
+float entity_decelerationPerTick;
+float entity_minAcceleration;
+float entity_minEatOverlap;
+float entity_minEatSizeMult;
 
 unsigned int player_maxNameLength;
 unsigned int player_maxCells;
 float player_maxFreeroamScale;
-double player_maxFreeroamSpeed;
+float player_maxFreeroamSpeed;
 unsigned int player_viewBoxWidth;
 unsigned int player_viewBoxHeight;
-double player_baseRemergeTime;
+float player_baseRemergeTime;
 unsigned long long player_cellRemoveTime;
 int player_chanceToSpawnFromEjected;
 unsigned long long player_collisionIgnoreTime;
 
-double playerCell_baseRadius;
-double playerCell_maxRadius;
-double playerCell_minRadiusToSplit;
-double playerCell_minRadiusToEject;
-double playerCell_minVirusSplitMass;
-double playerCell_ejectAngleVariation;
-double playerCell_radiusDecayRate;
-double playerCell_initialAcceleration;
+float playerCell_baseRadius;
+float playerCell_maxMass;
+float playerCell_minMassToSplit;
+float playerCell_minRadiusToEject;
+float playerCell_minVirusSplitMass;
+float playerCell_ejectAngleVariation;
+float playerCell_radiusDecayRate;
+float playerCell_initialAcceleration;
 bool playerCell_isSpiked;
 bool playerCell_isAgitated;
 unsigned char playerCell_canEat;
 unsigned char playerCell_avoidSpawningOn;
 unsigned int playerCell_speedMultiplier;
 
-double food_baseRadius;
-double food_maxRadius;
+float food_baseRadius;
+float food_maxRadius;
 unsigned int food_startAmount;
 unsigned int food_maxAmount;
 bool food_canGrow;
@@ -251,19 +262,19 @@ bool food_isAgitated;
 unsigned char food_canEat;
 unsigned char food_avoidSpawningOn;
 
-double virus_baseRadius;
-double virus_maxRadius;
+float virus_baseRadius;
+float virus_maxRadius;
 unsigned int virus_startAmount;
 unsigned int virus_maxAmount;
-double virus_initialAcceleration;
+float virus_initialAcceleration;
 bool virus_isSpiked;
 bool virus_isAgitated;
 unsigned char virus_canEat;
 unsigned char virus_avoidSpawningOn;
 Color virus_color;
 
-double motherCell_baseRadius;
-double motherCell_maxRadius;
+float motherCell_baseRadius;
+float motherCell_maxRadius;
 unsigned int motherCell_startAmount;
 unsigned int motherCell_maxAmount;
 bool motherCell_isSpiked;
@@ -272,10 +283,10 @@ unsigned char motherCell_canEat;
 unsigned char motherCell_avoidSpawningOn;
 Color motherCell_color;
 
-double ejected_baseRadius;
-double ejected_maxRadius;
-double ejected_efficiency;
-double ejected_initialAcceleration;
+float ejected_baseRadius;
+float ejected_maxRadius;
+float ejected_efficiency;
+float ejected_initialAcceleration;
 bool ejected_isSpiked;
 bool ejected_isAgitated;
 unsigned char ejected_canEat;

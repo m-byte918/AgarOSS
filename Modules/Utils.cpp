@@ -1,4 +1,5 @@
 #include "Utils.hpp"
+#include <sstream> // Color::toString()
 #include "../Game/Game.hpp"
 
 namespace utils {
@@ -52,6 +53,21 @@ std::vector<std::string> splitStr(const std::string &str, char delimiter) {
         i = j;
     }
     return ret;
+}
+
+// Check if string starts with '-', and ONLY contains one or more of the characters provided
+bool checkFlagStr(std::string str, const std::string &flagChars) {
+    if (str.front() != '-') return false;
+    str.erase(str.begin());
+
+    if (str.find_first_not_of(flagChars.c_str()) != std::string::npos)
+        return false;
+
+    for (char c : str) {
+        if (std::count(str.begin(), str.end(), c) > 1)
+            return false;
+    }
+    return true;
 }
 
 extern Color randomColor() noexcept {

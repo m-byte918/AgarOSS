@@ -3,7 +3,7 @@
 #include "../Game/Game.hpp" // configs
 #include "../Player/Player.hpp"
 
-PlayerCell::PlayerCell(const Vec2 &pos, double radius, const Color &color) noexcept :
+PlayerCell::PlayerCell(const Vec2 &pos, float radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
     type = CellType::PLAYERCELL;
 
@@ -11,16 +11,18 @@ PlayerCell::PlayerCell(const Vec2 &pos, double radius, const Color &color) noexc
     canEat = cfg::playerCell_canEat;
     avoidSpawningOn = cfg::playerCell_avoidSpawningOn;
 
-    isSpiked = cfg::playerCell_isSpiked;
-    isAgitated = cfg::playerCell_isAgitated;
+    if (cfg::playerCell_isSpiked)   state |= isSpiked;
+    if (cfg::playerCell_isAgitated) state |= isAgitated;
 }
 void PlayerCell::move() noexcept {
-    if (_owner->state() == PlayerState::DISCONNECTED)
-        return;
+    if (speedMultiplier == 0) return;
+
+    if (_owner && _owner->state() != PlayerState::DISCONNECTED)
+        mouseCache = _owner->mouse();
 
     // Difference between centers
-    Vec2 diff = (_owner->mouse() - _position).round();
-    double distance = (int)diff.squared();
+    Vec2 dir = (mouseCache - _position).round();
+    double distance = (int)dir.squared();
 
     // Not enough of a difference to move
     if (distance <= 1) return;
@@ -31,200 +33,185 @@ void PlayerCell::move() noexcept {
     // https://imgur.com/a/H9s0J
     // s = min(d, 2.2 * (r^-0.4396754) * t * m) / d
     double speed = 2.2 * std::pow(_radius, -0.4396754); // speed per millisecond
-    speed *= cfg::game_timeStep * cfg::playerCell_speedMultiplier; // speed per tick
+    speed *= cfg::game_timeStep * speedMultiplier; // speed per tick
 
     // limit the speed and check > 0 to prevent jittering
     speed = std::min(distance, speed) / distance;
     if (speed > 0)
         // Move to target at normalized speed then validate position
-        setPosition(_position + diff * speed, true);
+        setPosition(_position + dir * speed, true);
 }
 void PlayerCell::autoSplit() noexcept {
-    if (_radius <= cfg::playerCell_maxRadius) return;
+    if (_mass <= cfg::playerCell_maxMass || cellAmountCache > cfg::player_maxCells) 
+        return;
 
-    double maxMass = toMass(cfg::playerCell_maxRadius);
-    double remaining = cfg::player_maxCells - (int)_owner->cells.size();
-    double splitTimes = std::min(std::ceil(_mass / maxMass), remaining);
-    double splitRadius = toRadius(std::min(_mass / splitTimes, maxMass));
+    unsigned int remaining  = cfg::player_maxCells - (int)cellAmountCache;
+    unsigned int splitTimes = std::min((unsigned int)std::ceil(_mass / cfg::playerCell_maxMass), remaining);
+    float splitRadius = toRadius(std::min(_mass / splitTimes, cfg::playerCell_maxMass));
 
-    if (_owner->cells.size() == cfg::player_maxCells - 1) {
+    if (cellAmountCache == cfg::player_maxCells - 1) {
         ++splitTimes;
         splitRadius *= INV_SQRT_2;
     }
     for (; splitTimes > 1; splitTimes--)
-        split(rand(0.0, 2.0) * (double)MATH_PI, splitRadius);
+        split(float(rand(0.0, 2.0) * MATH_PI), splitRadius);
     setRadius(splitRadius);
 }
-//                        sm
-// (614  + 100) -> 345,  46,  33, 30, 29, 26, 22, 22, 22, 22, 20, 20, 20, 19, 19, 19
-// (559  + 222) -> 392,  49,  24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24
-// (712  + 100) -> 406,  51,  25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25
-// (848  + 100) -> 479,  59,  30, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29
-// (858  + 100) -> 475,  57,  29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29 
-// (912  + 100) -> 512,  68,  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32
-// (954  + 100) -> 527,  65,  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32
-// (1004 + 100) -> 552,  68,  35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 35, 35
-// (1183 + 100) -> 641,  39,  39, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29
-// (1211 + 100) -> 655,  327, 40, 40, 22, 21, 21, 20, 20, 20, 20, 20, 20, 20, 20, 20
-// (1222 + 100) -> 651,  327, 40, 40, 21, 21, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20
-// (1225 + 222) -> 723,  361, 44, 44, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22
-// (1544 + 100) -> 818,  408, 53, 50, 27, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25
-// (1705 + 100) -> 900,  449, 59, 56, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28
-// (2161 + 100) -> 1127, 540, 70, 70, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33
 void PlayerCell::pop() noexcept {
     // rough draft
-    int cellsLeft = cfg::player_maxCells - (int)_owner->cells.size();
+    int cellsLeft = cfg::player_maxCells - (int)cellAmountCache;
     if (cellsLeft <= 0) return;
 
-    std::vector<double> masses;
-    std::vector<double> remainingMasses;
+    float splitMass = _mass / cellsLeft;
+    std::vector<float> masses;
     masses.reserve(cellsLeft);
-    remainingMasses.reserve(cellsLeft);
 
-    double nextMass = _mass / 2;
-    double minMass = toMass(cfg::playerCell_minRadiusToSplit);
-    double splitMass = _mass / (cellsLeft + 1);
-    double threshold = minMass * minMass;
-
-    int amountOfBigSplits = (int)std::floor(_mass / threshold);
-    if (amountOfBigSplits > 3)
-        amountOfBigSplits = rand(4, 6);
-    amountOfBigSplits = std::min(amountOfBigSplits, cellsLeft);
-
-    auto distributeMass = [&]() {
-        // Split into equal-sized pieces
-        if (splitMass <= minMass) {
-            remainingMasses = std::vector(cellsLeft, splitMass);
-            // Equal-sized pieces are too small, decrease amount of splits
-            if (splitMass <= cfg::playerCell_minVirusSplitMass) {
-                cellsLeft = std::min(cellsLeft, (cellsLeft + 1) / 2);
-                splitMass = _mass / cellsLeft;
-                // Still too small -> repeat
-                if (splitMass * 2 <= cfg::playerCell_minVirusSplitMass * 3) {
-                    cellsLeft /= 2;
-                    splitMass = _mass / cellsLeft;
-                }
-                remainingMasses = std::vector(cellsLeft - 1, splitMass);
-            }
-        // Too big to split into equal-sized pieces, add excess mass to one piece
-        } else if (splitMass <= minMass * 2) {
-            masses.push_back(splitMass);
-            remainingMasses = std::vector(cellsLeft - (int)masses.size(), nextMass / (cellsLeft + 1));
-        // Piece with excess mass is too big, divide it's mass in two.
-        } else {
-            masses.push_back(splitMass / 2);
-            masses.push_back(masses.back());
-            splitMass = nextMass / (cellsLeft + 1);
-            if (splitMass >= minMass)
-                splitMass = (nextMass - (masses.back() * 2)) / cfg::playerCell_minVirusSplitMass;
-            splitMass = std::max(splitMass, cfg::playerCell_minVirusSplitMass);
-
-            if (cellsLeft - (int)masses.size() < 0)
-                remainingMasses = std::vector(cellsLeft, splitMass);
-            else
-                remainingMasses = std::vector(cellsLeft - (int)masses.size(), splitMass);
-        }
-    };
-    if (amountOfBigSplits == 0) {
-        distributeMass();
-        if (masses.empty())
-            nextMass = splitMass;
-    } else if (amountOfBigSplits <= 3) {
-        while (amountOfBigSplits > 0) {
-            nextMass /= 2;
-            masses.push_back(nextMass);
-            amountOfBigSplits--;
-        }
-        distributeMass();
-        nextMass = _mass / 2;
-    }
-    // Masses have been determined, skip larger splits
-    if (amountOfBigSplits <= 3) {
-        masses.insert(masses.end(), remainingMasses.begin(), remainingMasses.end());
-        Logger::info("1: ",masses.size());
-        setMass(nextMass);
+    if (splitMass <= cfg::playerCell_minMassToSplit) {
+        unsigned int amount = 2;
+        for (; _mass > cfg::playerCell_minMassToSplit * amount
+            && amount < cfg::player_maxCells; amount *= 2);
+        cellsLeft = std::min(cellsLeft, (int)amount);
+        splitMass = _mass / cellsLeft;
+        cellsLeft -= 1;
+        setMass(splitMass);
     } else {
-        // Larger splits
-        double massLeft = nextMass;
-        while (cellsLeft > 0) {
-            if (amountOfBigSplits > 0) {
-                if (nextMass / amountOfBigSplits <= cfg::playerCell_minVirusSplitMass * 2) {
-                    amountOfBigSplits = 0;
-                    continue;
-                }
-                nextMass /= 2;
-                if (amountOfBigSplits == 1 && rand(0, 3) == 3) {
-                    nextMass /= 2;
+        float nextMass = _mass * 0.5f;
+        float totalMass = nextMass;
+        while (cellAmountCache + masses.size() < cfg::player_maxCells) {
+            splitMass = nextMass / cfg::player_maxCells;
+            if (splitMass < cfg::playerCell_minMassToSplit) {
+                float totalProjectedMass = totalMass + splitMass * cellsLeft;
+                float prevMass = nextMass;
+                nextMass = _mass - totalProjectedMass;
+                while (totalMass + (prevMass / 2) * cellsLeft > _mass && cellsLeft > 0) {
+                    nextMass = prevMass / 2;
+                    if (nextMass < cfg::playerCell_minMassToSplit)
+                        break;
+                    if (totalMass + nextMass + splitMass * (cellsLeft-1) > _mass)
+                        nextMass -= totalMass + nextMass + splitMass * (cellsLeft-1) - _mass;
+                    totalMass += nextMass;
                     masses.push_back(nextMass);
-                    massLeft -= nextMass;
-                    cellsLeft--;
+                    --cellsLeft;
+                    prevMass = nextMass;
                 }
-                amountOfBigSplits--;
-            } else {
-                // Larger splits done -> fill remaining slots with small cells
-                nextMass = std::max(massLeft / (cellsLeft + 1), cfg::playerCell_minVirusSplitMass);
+                if (nextMass < cfg::playerCell_minMassToSplit) {
+                    splitMass = std::max(nextMass, cfg::playerCell_minVirusSplitMass);
+                    //Logger::warn(splitMass);
+                    break;
+                }
+                if (totalMass + (prevMass / 2) * cellsLeft == _mass && cellsLeft > 0) {
+                    prevMass /= cellsLeft;
+                    if (prevMass < cfg::playerCell_minMassToSplit)
+                        break;
+                    for (; cellsLeft > 0; --cellsLeft)
+                        masses.push_back(prevMass);
+                }
+                while (totalProjectedMass < _mass && cellsLeft > 0) {
+                    if (nextMass < cfg::playerCell_minMassToSplit)
+                        nextMass *= 2;
+                    if (nextMass < cfg::playerCell_minMassToSplit)
+                        break;
+                    totalMass += nextMass;
+                    masses.push_back(nextMass);
+                    --cellsLeft;
+                    totalProjectedMass = totalMass + splitMass * cellsLeft;
+                }
+                break;
             }
+            if (cellsLeft == 1 && totalMass + (nextMass / 2) < _mass)
+                nextMass;
+            else
+                nextMass /= 2;
+            totalMass += nextMass;
             masses.push_back(nextMass);
-            massLeft -= nextMass;
-            cellsLeft--;
+            --cellsLeft;
         }
         setRadius(_radius * INV_SQRT_2);
-        Logger::info("2: ", masses.size());
     }
+    for (; splitMass < cfg::playerCell_minVirusSplitMass; splitMass *= 2);
+    for (; cellsLeft > 0; --cellsLeft)
+        masses.push_back(splitMass);
     // Send masses flying at random angles
-    for (double mass : masses)
-        split(rand(0.0, 2.0) * (double)MATH_PI, toRadius(mass));
+    cellAmountCache = cfg::player_maxCells;
+    for (const float &mass : masses)
+        split(float(rand(0.0, 2.0) * MATH_PI), toRadius(mass));
 }
-void PlayerCell::split(double angle, double radius) noexcept {
+void PlayerCell::split(double angle, float radius) noexcept {
     // Spawn cell at splitting cell's position with new radius
-    e_ptr newCell = map::spawnUnsafe<PlayerCell>(_position, radius, _color);
+    e_ptr &newCell = map::spawnUnsafe<PlayerCell>(_position, radius, _color);
     newCell->setVelocity(cfg::playerCell_initialAcceleration, angle);
     newCell->setOwner(_owner);
-    newCell->setCreator(_owner->id);
+    newCell->setCreator(_creatorId);
+    newCell->cellAmountCache = cellAmountCache;
+    newCell->speedMultiplier = speedMultiplier;
 
+    if (_owner == nullptr || _owner->state() == PlayerState::DISCONNECTED) {
+        newCell->speedMultiplier = 0;
+        return;
+    }
     // Add new cell to owner's cells
-    _owner->cells.push_back(newCell);
-    _owner->packetHandler.sendPacket(_owner->protocol->addNode(newCell->nodeId()));
+    _owner->cells.push_back(newCell.get());
+
+    if (_owner->protocol != nullptr)
+        _owner->packetHandler.sendPacket(_owner->protocol->addNode(newCell->nodeId()));
 }
 void PlayerCell::consume(e_ptr &prey) noexcept {
     // Ejected cells ignore eat collision from the cell they were ejected
     // from for about 2 seconds (50 ticks) after initial boost
     if (prey->type == CellType::EJECTED && prey->creator() == _nodeId && prey->age() <= 50)
         return;
-    Entity::consume(prey);
+    // Do not gain mass from bots
+    if (!(prey->type == CellType::PLAYERCELL && 
+        prey->mass() <= cfg::playerCell_minMassToSplit * 0.5f && 
+        _mass >= cfg::playerCell_maxMass / cfg::playerCell_minMassToSplit))
+        setMass(_mass + prey->mass());
     // Split on a virus or mothercell
-    if ((prey->type == CellType::VIRUS || prey->type == CellType::MOTHERCELL) && prey->isRemoved)
+    if (prey->type == CellType::VIRUS || prey->type == CellType::MOTHERCELL)
         pop();
+    
+    prey->setKiller(_nodeId); // prey was killed by this
+    map::despawn(prey.get()); // remove prey from map
 }
 void PlayerCell::update(unsigned long long tick) noexcept {
     move();
 
+    if (_owner != nullptr)
+        cellAmountCache = _owner->cells.size();
+
     // Update remerge
-    double base = std::max(cfg::player_baseRemergeTime, std::floor(_radius * 0.2)) * 25;
-    if (_owner->isForceMerging || cfg::player_baseRemergeTime <= 0)
-        ignoreCollision = _acceleration < 150;
+    float base = std::max(cfg::player_baseRemergeTime, std::floor(_radius * 0.2f)) * 25;
+    if ((_owner && _owner->isForceMerging) || cfg::player_baseRemergeTime <= 0)
+        state = _acceleration < 150 ? (state | ignoreCollision) : (state & ~ignoreCollision);
     else
-        ignoreCollision = age() >= base;
+        state = age() >= base ? (state | ignoreCollision) : (state & ~ignoreCollision);
 
     // Update decay once per second
-    if ((tick % 25) != 0) return;
+    if ((tick % 25) == 0) {
+        if (cfg::playerCell_radiusDecayRate <= 0) return;
 
-    double rate = cfg::playerCell_radiusDecayRate;
-    if (rate <= 0) return;
+        float newRadius = std::sqrt(radiusSquared() * cfg::playerCell_radiusDecayRate);
+        if (newRadius <= cfg::playerCell_baseRadius)
+            return;
 
-    double newRadius = std::sqrt(radiusSquared() * rate);
-    if (newRadius <= cfg::playerCell_baseRadius)
-        return;
-
-    setRadius(newRadius);
+        setRadius(newRadius);
+    }
 }
-void PlayerCell::onDespawned() const noexcept {
-    // Remove from owner's cells
-    _owner->cells.erase(std::find(_owner->cells.begin(), _owner->cells.end(), shared));
+void PlayerCell::onDespawned() noexcept {
+    if (!_owner) return;
 
-    // Set owner as dead if no cells left
-    if (_owner->cells.empty() && _owner->state() != PlayerState::DISCONNECTED)
-        _owner->setDead();
+    // Remove from owner's cells
+    _owner->cells.erase(std::find(_owner->cells.begin(), _owner->cells.end(), this));
+
+    if (_owner->cells.empty()) {
+        if (_owner->state() != PlayerState::DISCONNECTED) {
+            _owner->setDead();
+        } else {
+            // NOW delete owner, their vector of 
+            // cells no longer needs to be accessed
+            delete _owner;
+            _owner = nullptr;
+        }
+    }
 }
 
 PlayerCell::~PlayerCell() {

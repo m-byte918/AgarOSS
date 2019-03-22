@@ -1,4 +1,5 @@
 #pragma once
+#include "../Game/Game.hpp"
 #include "../Connection/Server.hpp"
 #include "../Protocol/Protocol.hpp"
 #include "../Entities/PlayerCell.hpp"
@@ -13,24 +14,29 @@ enum struct PlayerState {
 namespace {
 unsigned int prevPlayerId = 0;
 }
+class Minion;
 
 class Player {
 public:
     // Server, protocol
-    Server       *server;
-    Protocol     *protocol;
-    PacketHandler packetHandler;
+    Player       *owner    = nullptr;
+    Server       *server   = nullptr;
+    Protocol     *protocol = nullptr;
+    PacketHandler packetHandler{nullptr};
     uWS::WebSocket<uWS::SERVER> *socket;
 
     // Misc
     unsigned int       id;
-    unsigned int       protocolNum       = 0;
-    unsigned long long disconnectionTick = 0;
-    bool               isForceMerging    = false;
-    std::vector<std::shared_ptr<PlayerCell::Entity>> cells;
+    unsigned int       protocolNum        = 0;
+    unsigned long long disconnectionTick  = 0;
+    bool               isForceMerging     = false;
+    bool               controllingMinions = false;
+    float              spawnRadius        = cfg::playerCell_baseRadius;
+    std::vector<Entity*> cells;
+    std::vector<Minion*> minions;
 
     // Setters
-    Player(uWS::WebSocket<uWS::SERVER> *_socket);
+    Player(Server *_server);
     void setDead() noexcept;
     void setFreeroam() noexcept;
     void setSpectating() noexcept;
@@ -46,36 +52,41 @@ public:
     const std::string &cellName() const noexcept;
 
     // Updating
-    void update(unsigned long long tick);
-    void updateScale();
+    virtual void update(unsigned long long tick);
+    void updateScore();
     void updateCenter();
     void updateViewBox();
     void updateVisibleNodes();
+    virtual void updateDisconnection(unsigned long long tick);
 
     // Recieved information
     void onQKey() noexcept;
     void onSplit() noexcept;
     void onEject() noexcept;
     void onSpectate() noexcept;
-    void onDisconnection() noexcept;
+    virtual void onDisconnection() noexcept;
     void onTarget(const Vec2&) noexcept;
     void onSpawn(std::string name) noexcept;
 
-    ~Player();
+    // Misc
+    void spawn(std::string name) noexcept;
+
+    virtual ~Player();
 private:
     std::string _skinName = "";
-    std::string _cellName = "An unnamed cell";
+    std::string _cellName = "";
     
     float  scale         = 0.0f;
-    double _score        = 0.0;
     float  filteredScale = 1.0f;
+    double _score        = 0.0;
 
-    Vec2 _mouse  = { 0, 0 };
     Vec2 _center = { 0, 0 };
     Rect viewBox = Rect(0, 0, 0, 0);
 
     // Pair entities with their nodeIds
     std::map<unsigned long long, e_ptr> visibleNodes;
 
+protected:
+    Vec2        _mouse = { 0, 0 };
     PlayerState _state = PlayerState::DEAD;
 };

@@ -57,10 +57,10 @@ void PacketHandler::onPacket(std::vector<unsigned char> &packet) {
         onEject();
         break;
     case OpCode::CAPTCHA_RESPONSE:
-        Logger::info("Captcha Response packet recieved.");
+        Logger::info("Captcha Response packet received.");
         break;
     case OpCode::PONG:
-        Logger::info("Pong packet recieved.");
+        Logger::info("Pong packet received.");
         break;
     case OpCode::ESTABLISH_CONNECTION:
         onEstablishedConnection(buffer.readUInt32_LE());
@@ -72,30 +72,30 @@ void PacketHandler::onPacket(std::vector<unsigned char> &packet) {
 }
 
 void PacketHandler::onSpawn(std::string name) const noexcept {
-    Logger::info("Spawn packet recieved.");
+    Logger::info("Spawn packet received.");
     player->onSpawn(name);
 }
 
 void PacketHandler::onSpectate() const noexcept {
-    Logger::info("Spectate packet recieved.");
+    Logger::info("Spectate packet received.");
     player->onSpectate();
 }
 void PacketHandler::onTarget(const Vec2 &mouse) const noexcept {
-    //Logger::info("Set Target packet recieved.");
+    //Logger::info("Set Target packet received.");
     player->onTarget(mouse);
 }
 void PacketHandler::onSplit() const noexcept {
     player->onSplit();
 }
 void PacketHandler::onQKey() const noexcept {
-    Logger::info("Q keypress packet recieved.");
+    //Logger::info("Q keypress packet received.");
     player->onQKey();
 }
 void PacketHandler::onEject() const noexcept {
     player->onEject();
 }
 void PacketHandler::onEstablishedConnection(const unsigned &protocol) const noexcept {
-    Logger::info("Establish Connection packet recieved.");
+    Logger::info("Establish Connection packet received.");
     Logger::info("Protocol version: " + std::to_string(protocol));
     if (protocol < cfg::server_minSupportedProtocol ||
         protocol > cfg::server_maxSupportedProtocol) {
@@ -123,7 +123,7 @@ void PacketHandler::onEstablishedConnection(const unsigned &protocol) const noex
     player->protocolNum = protocol;
 }
 void PacketHandler::onConnectionKey() const noexcept {
-    Logger::info("Connection Key packet recieved.");
+    Logger::info("Connection Key packet received.");
     sendPacket(player->protocol->clearAll());
     sendPacket(player->protocol->setBorder());
 }
