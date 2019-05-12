@@ -1,4 +1,4 @@
-![AgarOSS](https://raw.githubusercontent.com/Megabyte918/AgarOSS/Logo.png)
+![AgarOSS](https://raw.githubusercontent.com/Megabyte918/AgarOSS/master/Logo.png)
 
 # AgarOSS (Agar.io Open Source Server)
 An Agar.io server implementation written in C++.
