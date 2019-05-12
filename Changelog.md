@@ -29,7 +29,7 @@
 - Reformatted `help` command
 - Added `pause`, `minion`, `setname`, `setskin`, `spawnmass`, `explode`, `speed`, `color`, `split`, and `replace` commands
 - Added `install_uws.sh` to aid in importing the uWebSockets library for linux
-- Fixed compiling on Windows [#10](https://github.com/Megabyte918/OgarCpp/issues/10)
+- Fixed compiling on Windows [#10](https://github.com/Megabyte918/AgarOSS/issues/10)
 - Spelling & grammar corrections
 - Other optimizations and performance improvements
 ---

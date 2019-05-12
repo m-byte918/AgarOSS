@@ -12,7 +12,7 @@ json config = {
     { "server", {
         { "host", "127.0.0.1" },
         { "port", 8080 },
-        { "name", "OgarCpp" },
+        { "name", "AgarOSS" },
         { "maxConnections", 500 },
         { "maxSupportedProtocol", 20 },
         { "minSupportedProtocol", 1 }
