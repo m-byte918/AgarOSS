@@ -3,7 +3,6 @@
 
 Ejected::Ejected(const Vec2 &pos, float radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
-    type = CellType::EJECTED;
 
     flag = ejected;
     canEat = cfg::ejected_canEat;

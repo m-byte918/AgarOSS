@@ -36,6 +36,20 @@ bool Color::operator!=(const Color &other) {
     return r != other.r || g != other.g || b != other.b;
 }
 
+// Returns flag from a json list
+unsigned char getFlagFrom(const json::value_type &j) {
+    unsigned char flag = 0x00;
+    for (const std::string &s : j) {
+        if (s == "food") flag |= food;
+        else if (s == "viruses") flag |= viruses;
+        else if (s == "ejected") flag |= ejected;
+        else if (s == "mothercells") flag |= mothercells;
+        else if (s == "playercells") flag |= playercells;
+        else flag |= nothing;
+    }
+    return flag;
+}
+
 // Returns a vector of strings from provided string
 std::vector<std::string> splitStr(const std::string &str, char delimiter) {
     std::vector<std::string> ret;
@@ -76,7 +90,8 @@ extern Color randomColor() noexcept {
         7,
         (unsigned char)rand(0, 256)
     };
-    std::shuffle(&RGB[0], &RGB[3], std::random_device{});
+    static std::random_device rd;
+    std::shuffle(&RGB[0], &RGB[3], rd);
     return { RGB[0], RGB[2], RGB[1] };
 }
 

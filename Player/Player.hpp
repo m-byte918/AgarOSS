@@ -15,6 +15,7 @@ namespace {
 unsigned int prevPlayerId = 0;
 }
 class Minion;
+class PlayerBot;
 
 class Player {
 public:
@@ -23,16 +24,15 @@ public:
     Server       *server   = nullptr;
     Protocol     *protocol = nullptr;
     PacketHandler packetHandler{nullptr};
-    uWS::WebSocket<uWS::SERVER> *socket;
+    uWS::WebSocket<false, true> *socket = nullptr;
 
     // Misc
-    unsigned int       id;
+    unsigned int       id                 = 0;
     unsigned int       protocolNum        = 0;
-    unsigned long long disconnectionTick  = 0;
     bool               isForceMerging     = false;
     bool               controllingMinions = false;
     float              spawnRadius        = cfg::playerCell_baseRadius;
-    std::vector<Entity*> cells;
+    std::vector<sptr<PlayerCell::Entity>> cells;
     std::vector<Minion*> minions;
 
     // Setters
@@ -40,8 +40,9 @@ public:
     void setDead() noexcept;
     void setFreeroam() noexcept;
     void setSpectating() noexcept;
+    void setFullName(std::string name, bool isUCS2 = false) noexcept;
     void setSkinName(const std::string &name) noexcept;
-    void setCellName(const std::string &name) noexcept;
+    void setCellName(const std::string &name, bool isUCS2 = false) noexcept;
     
     // Getters
     double score() const noexcept;
@@ -49,44 +50,49 @@ public:
     const Vec2 &center() const noexcept;
     const PlayerState &state() const noexcept;
     const std::string &skinName() const noexcept;
-    const std::string &cellName() const noexcept;
+    const std::string &cellNameUTF8() const noexcept;
+    const std::string &cellNameUCS2() const noexcept;
 
     // Updating
-    virtual void update(unsigned long long tick);
+    virtual void update();
     void updateScore();
     void updateCenter();
     void updateViewBox();
-    void updateVisibleNodes();
-    virtual void updateDisconnection(unsigned long long tick);
+    virtual void updateVisibleNodes();
 
     // Recieved information
     void onQKey() noexcept;
     void onSplit() noexcept;
     void onEject() noexcept;
     void onSpectate() noexcept;
-    virtual void onDisconnection() noexcept;
+    void onDisconnection() noexcept;
     void onTarget(const Vec2&) noexcept;
-    void onSpawn(std::string name) noexcept;
+    void onSpawn() noexcept;
 
     // Misc
-    void spawn(std::string name) noexcept;
+    void spawn() noexcept;
+    std::string toString() noexcept;
 
     virtual ~Player();
+
 private:
     std::string _skinName = "";
-    std::string _cellName = "";
     
-    float  scale         = 0.0f;
-    float  filteredScale = 1.0f;
-    double _score        = 0.0;
-
-    Vec2 _center = { 0, 0 };
-    Rect viewBox = Rect(0, 0, 0, 0);
+    float         scale         = 0.0f;
+    float         filteredScale = 1.0f;
+    unsigned char lbUpdateTick  = 0;
 
     // Pair entities with their nodeIds
-    std::map<unsigned long long, e_ptr> visibleNodes;
+    std::map<unsigned int, e_ptr> visibleNodes;
 
 protected:
-    Vec2        _mouse = { 0, 0 };
-    PlayerState _state = PlayerState::DEAD;
+    std::string _cellNameUCS2 = "";
+    std::string _cellNameUTF8 = "";
+
+    Rect viewBox = Rect(0, 0, cfg::player_viewBoxWidth, cfg::player_viewBoxHeight);
+
+    double      _score  = 0.0;
+    Vec2        _mouse  = { 0, 0 };
+    Vec2        _center = { 0, 0 };
+    PlayerState _state  = PlayerState::DEAD;
 };

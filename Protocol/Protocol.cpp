@@ -1,5 +1,7 @@
+
 #include "Protocol.hpp"
 #include "../Game/Map.hpp"
+#include "../Player/Player.hpp"
 
 Protocol::Protocol(Player *owner) :
     player(owner) {
@@ -12,7 +14,7 @@ Buffer &Protocol::addNode(unsigned int nodeId) {
 }
 Buffer &Protocol::banPlayer(const std::string &playerNameOrIp) {
     buffer.writeUInt8(0x69);
-    return buffer.writeStr(playerNameOrIp + "\0");
+    return buffer.writeStrNull_UTF8(playerNameOrIp);
 }
 Buffer &Protocol::clearAll() {
     return buffer.writeUInt8(0x12);
@@ -24,7 +26,6 @@ Buffer &Protocol::compressed(std::vector<unsigned char> &_Packet) {
     buffer.setBuffer(_Packet);
     buffer.writeUInt8(0xff);
     buffer.writeUInt32_LE((unsigned int)_Packet.size());
-
     for (const unsigned char &byte : _Packet)
         buffer.writeUInt8(byte);
     return buffer;
@@ -56,7 +57,6 @@ Buffer &Protocol::requestClientUpdate() {
 }
 Buffer &Protocol::setBorder() {
     buffer.writeUInt8(0x40);
-
     buffer.writeDouble_LE(map::bounds().left());
     buffer.writeDouble_LE(map::bounds().bottom());
     buffer.writeDouble_LE(map::bounds().right());
@@ -66,11 +66,21 @@ Buffer &Protocol::showArrow(const Vec2 &position, const std::string &playerName)
     buffer.writeUInt8(0xa0);
     buffer.writeInt16_LE((short)position.x);
     buffer.writeInt16_LE((short)position.y);
-    return buffer.writeStr(playerName + "\0");
+    return buffer.writeStrNull_UTF8(playerName);
 }
 // Update these for each protocol
 Buffer &Protocol::updateLeaderboardList() {
-    return buffer.writeUInt8(0x35);
+    buffer.writeUInt8(0x31);
+    unsigned length = (unsigned)map::game->leaders.size();
+    buffer.writeUInt32_LE(length);
+    for (unsigned i = 0; i < length; ++i) {
+        Player *p = map::game->leaders[i];
+        if (!p || p->state() != PlayerState::PLAYING)
+            continue;
+        buffer.writeUInt32_LE(p->cells.back()->nodeId());
+        buffer.writeStrNull_UCS2(p->cellNameUCS2());
+    }
+    return buffer;
 }
 // Update these for each protocol
 Buffer &Protocol::updateLeaderboardRGB(const std::vector<float> &board) {
@@ -80,20 +90,12 @@ Buffer &Protocol::updateLeaderboardRGB(const std::vector<float> &board) {
         buffer.writeFloat_LE(color);
     return buffer;
 }
+Buffer &Protocol::updateLeaderboardText(const std::vector<std::string> &board) {
+    return buffer;
+}
 // Update these for each protocol
 Buffer &Protocol::updateNodes(const std::vector<e_ptr> &eatNodes, const std::vector<e_ptr> &updNodes,
     const std::vector<e_ptr> &delNodes, const std::vector<e_ptr> &addNodes) {
-    addNodes;
-    delNodes;
-    updNodes;
-    buffer.writeUInt8(0x10);
-
-    // Eat record
-    buffer.writeUInt16_LE((unsigned short)eatNodes.size());
-    for (const e_ptr &entity : eatNodes) {
-        buffer.writeUInt32_LE(entity->killerId());
-        buffer.writeUInt32_LE((unsigned)entity->nodeId());
-    }
     return buffer;
 }
 Buffer &Protocol::updateViewport(const Vec2 &position, float scale) {
@@ -102,10 +104,9 @@ Buffer &Protocol::updateViewport(const Vec2 &position, float scale) {
     buffer.writeFloat_LE((float)position.y);
     return buffer.writeFloat_LE(scale);
 }
+// To be implemented
 Buffer &Protocol::chatMessage(/**/) {
-    buffer.writeUInt8(0x63);
-    // to be implemented
-    return buffer;
+    return buffer.writeUInt8(0x63);
 }
 Buffer &Protocol::drawLine(const Vec2 &position) {
     buffer.writeUInt8(0x15);
@@ -113,14 +114,14 @@ Buffer &Protocol::drawLine(const Vec2 &position) {
     return buffer.writeInt16_LE((short)position.y);
 }
 Buffer &Protocol::serverStat(const std::string &info) {
-    info;
     return buffer;
 }
 Buffer &Protocol::auth(const std::string &str) {
-    str;
     return buffer;
 }
 
+Protocol::~Protocol() {
+}
 /*
 Usertext:     0x30 (48), 4-13
 Usertext/Reg: 0x31 (49), 4-10

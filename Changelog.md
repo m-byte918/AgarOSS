@@ -1,4 +1,41 @@
 # Changelog
+### v1.42
+- Fixed bug where server could send packets from players without a defined protocol
+- Players connecting with protocols < 4 now defaults to protocol 4
+- Some tweaks to entity typing system
+- Fixed memory management issues with shared pointers
+- Some optimizations with entity and player updating
+- Players are no longer updated once disconnected
+- Playercells no longer autosplit while force merging
+- Settings are now loaded from JSON file [#11](https://github.com/m-byte918/AgarOSS/issues/11)
+- Added leaderboard with `game_leaderboardLength` config
+- Added `player_skinNameTags` config and removed `player_cellRemoveTime` config
+- Refactored & reduced some of `map`'s methods
+- Added methods to `Buffer` class to read/write UTF8 & Unicode strings without the `wstring` type 
+- Added `kick` command
+- Implemented playerbots with MultiOgar AI (for now..)
+- Fixed minions having incorrect skin names
+- Fixed crash with `setname` command
+- Fixed bug where ejected cells spawned by the `replace` command were intangible
+- Added current game tick and average player score to `debug` command
+- Added `clampX` & `clampY` methods to `Vec2` class for spectator viewbox
+- Added `apt update` to `install_uws.sh`
+- Added `contains` method to QuadTree (mostly for debugging purposes)
+- Moving entities are now updated in reverse order to reduce cell switching
+- Added startup graphics
+- Fixed seemingly random crash caused by clearing a buffer that does not exist 
+- `setmass` command now sets absolute mass of the player instead of the mass of each cell
+- Minions no longer respawn unless their owner is in-game
+- Small refactoring to logger
+- Added logName, logFolder, logBackupFolder configs
+- Added cmake support
+- Added pstring command to print debug information about a player
+- Added server playerbots config
+- Added server minionsperplayer config
+- Combined install_uws.bat into compile.bat and made it actually work
+- Combined install_uws.sh into compile.sh and made it actually work
+- Other optimizations and performance improvements
+---
 ### v1.07
 - Added `server_host` configuration
 - Implemented minions with Q controls
@@ -22,14 +59,14 @@
 - Added vanilla feature where orphaned playercells remain on the map for all eternity
 - Fixed excess newlines in console output on linux
 - Fixed crash on server shutdown due to players being deleted before entities
-- Refactored and reogranized `Commands` class
+- Refactored and reorganized `Commands` class
 - Added aliases for some commands
 - Changed command format from `command(args...)` to `command <args>...` and removed case sensitivity
 - Added ability to execute player commands on groups of players using `-p`, `-b`, and `-m` flags
 - Reformatted `help` command
 - Added `pause`, `minion`, `setname`, `setskin`, `spawnmass`, `explode`, `speed`, `color`, `split`, and `replace` commands
 - Added `install_uws.sh` to aid in importing the uWebSockets library for linux
-- Fixed compiling on Windows [#10](https://github.com/Megabyte918/OgarCpp/issues/10)
+- Fixed compiling on Windows [#10](https://github.com/m-byte918/AgarOSS/issues/10)
 - Spelling & grammar corrections
 - Other optimizations and performance improvements
 ---

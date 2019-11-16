@@ -1,0 +1,112 @@
+{
+    "logger": {
+      "logName": "MainLog",
+      "logFolder": "./Run/logs",
+      "logBackupFolder": "./Run/logs/LogBackups",
+      "maxSeverity": 5,
+      "maxFileSeverity": 5,
+      "printTextColor": 7,
+      "backgroundColor": 0
+    },
+    "server": {
+        "host": "0.0.0.0",
+        "port": 8080,
+        "name": "AgarOSS",
+        "playerBots": 0,
+        "minionsPerPlayer": 0,
+        "maxConnections": 500,
+        "maxSupportedProtocol": 20,
+        "minSupportedProtocol": 1
+    },
+    "game": {
+        "mode": 0,
+        "timeStep": 40,
+        "leaderboardLength": 10,
+        "mapWidth": 14142.135623730952,
+        "mapHeight": 14142.135623730952,
+        "quadTreeLeafCapacity": 64,
+        "quadTreeMaxDepth": 32
+    },
+    "player": {
+        "maxNameLength": 15,
+        "skinNameTags": "<>",
+        "maxCells": 16,
+        "maxFreeroamScale": 0.4,
+        "maxFreeroamSpeed": 32,
+        "viewBoxWidth": 1920,
+        "viewBoxHeight": 1080,
+        "baseRemergeTime": 30,
+        "chanceToSpawnFromEjected": 25,
+        "collisionIgnoreTime": 12
+    },
+    "playerBot": {
+    
+    },
+    "minion": {
+
+    },
+    "entity": {
+        "decelerationPerTick": 10.25,
+        "minAcceleration": 0.0,
+        "minEatOverlap": 0.4,
+        "minEatSizeMult": 1.15
+    },
+    "playerCell": {
+        "baseRadius": 32,
+        "maxMass": 22500,
+        "minMassToSplit": 36,
+        "minRadiusToEject": 59.16079783,
+        "minVirusSplitMass": 19.36,
+        "ejectAngleVariation": 0.3,
+        "radiusDecayRate": 0.998,
+        "initialAcceleration": 800,
+        "isSpiked": false,
+        "isAgitated": false,
+        "canEat": [ "playercells", "mothercells", "ejected", "viruses", "food" ],
+        "avoidSpawningOn": [ "playercells", "viruses", "mothercells" ],
+        "speedMultiplier": 1
+    },
+    "food": {
+        "baseRadius": 10,
+        "maxRadius": 20,
+        "startAmount": 3000,
+        "maxAmount": 6000,
+        "canGrow": true,
+        "isSpiked": false,
+        "isAgitated": false,
+        "canEat": [ "nothing" ],
+        "avoidSpawningOn": [ "ejected" ]
+    },
+    "virus": {
+        "baseRadius": 100,
+        "maxRadius": 141.421356237,
+        "startAmount": 52,
+        "maxAmount": 78,
+        "initialAcceleration": 800,
+        "isSpiked": true,
+        "isAgitated": false,
+        "canEat": [ "ejected" ],
+        "avoidSpawningOn": [ "playercells", "ejected", "mothercells" ],
+        "color": [ 51, 255, 51 ]
+    },
+    "motherCell": {
+        "baseRadius": 149,
+        "maxRadius": 65535,
+        "startAmount": 25,
+        "maxAmount": 25,
+        "isSpiked": true,
+        "isAgitated": false,
+        "canEat": [ "playercells", "ejected", "viruses" ],
+        "avoidSpawningOn": [ "playercells", "ejected", "mothercells", "viruses" ],
+        "color": [ 206, 99, 99 ]
+    },
+    "ejected": {
+        "baseRadius": 42.4264,
+        "maxRadius": 42.4264,
+        "efficiency": 80,
+        "initialAcceleration": 800,
+        "isSpiked": false,
+        "isAgitated": false,
+        "canEat": [ "nothing" ]
+    }
+}

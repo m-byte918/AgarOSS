@@ -1,6 +1,7 @@
 #include "Vec2.hpp"
-#include <sstream> // toString()
-#include <cmath>   // angle(), length()
+#include <algorithm> // clampX(), clampY()
+#include <sstream>   // toString()
+#include <cmath>     // angle(), length()
 
 Vec2::Vec2() noexcept :
     x(0.0),
@@ -19,7 +20,7 @@ double Vec2::angle() const noexcept {
     return std::atan2(y, x);
 }
 double Vec2::squared() const noexcept {
-    return x * x + y * y;
+    return dot(*this);
 }
 double Vec2::length() const noexcept {
     return std::sqrt(squared());
@@ -37,6 +38,21 @@ std::string Vec2::toString() const noexcept {
 }
 double Vec2::dot(const Vec2 &other) const noexcept {
     return x * other.x + y * other.y;
+}
+
+Vec2 Vec2::clampX(double _x, double low, double high) noexcept {
+    x = std::max(low, std::min(_x, high));
+    return *this;
+}
+Vec2 Vec2::clampY(double _y, double low, double high) noexcept {
+    y = std::max(low, std::min(_y, high));
+    return *this;
+}
+Vec2 Vec2::clampX(double _x, const Vec2 &other) noexcept {
+    return clampX(_x, other.x, other.y);
+}
+Vec2 Vec2::clampY(double _y, const Vec2 &other) noexcept {
+    return clampY(_y, other.x, other.y);
 }
 
 void Vec2::operator=(const Vec2 &other) noexcept {

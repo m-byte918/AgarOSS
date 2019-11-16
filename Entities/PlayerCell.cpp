@@ -1,3 +1,6 @@
+#include "Virus.hpp"
+#include "Ejected.hpp"
+#include "MotherCell.hpp"
 #include "PlayerCell.hpp"
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
@@ -5,7 +8,6 @@
 
 PlayerCell::PlayerCell(const Vec2 &pos, float radius, const Color &color) noexcept :
     Entity(pos, radius, color) {
-    type = CellType::PLAYERCELL;
 
     flag = playercells;
     canEat = cfg::playerCell_canEat;
@@ -17,7 +19,7 @@ PlayerCell::PlayerCell(const Vec2 &pos, float radius, const Color &color) noexce
 void PlayerCell::move() noexcept {
     if (speedMultiplier == 0) return;
 
-    if (_owner && _owner->state() != PlayerState::DISCONNECTED)
+    if (_owner->state() != PlayerState::DISCONNECTED)
         mouseCache = _owner->mouse();
 
     // Difference between centers
@@ -42,14 +44,15 @@ void PlayerCell::move() noexcept {
         setPosition(_position + dir * speed, true);
 }
 void PlayerCell::autoSplit() noexcept {
-    if (_mass <= cfg::playerCell_maxMass || cellAmountCache > cfg::player_maxCells) 
+    if (_mass <= cfg::playerCell_maxMass || _owner->cells.size() > cfg::player_maxCells 
+        || _owner->isForceMerging)
         return;
 
-    unsigned int remaining  = cfg::player_maxCells - (int)cellAmountCache;
+    unsigned int remaining  = cfg::player_maxCells - (int)_owner->cells.size();
     unsigned int splitTimes = std::min((unsigned int)std::ceil(_mass / cfg::playerCell_maxMass), remaining);
     float splitRadius = toRadius(std::min(_mass / splitTimes, cfg::playerCell_maxMass));
 
-    if (cellAmountCache == cfg::player_maxCells - 1) {
+    if (_owner->cells.size() == cfg::player_maxCells - 1) {
         ++splitTimes;
         splitRadius *= INV_SQRT_2;
     }
@@ -59,7 +62,7 @@ void PlayerCell::autoSplit() noexcept {
 }
 void PlayerCell::pop() noexcept {
     // rough draft
-    int cellsLeft = cfg::player_maxCells - (int)cellAmountCache;
+    int cellsLeft = cfg::player_maxCells - (int)_owner->cells.size();
     if (cellsLeft <= 0) return;
 
     float splitMass = _mass / cellsLeft;
@@ -77,7 +80,7 @@ void PlayerCell::pop() noexcept {
     } else {
         float nextMass = _mass * 0.5f;
         float totalMass = nextMass;
-        while (cellAmountCache + masses.size() < cfg::player_maxCells) {
+        while (_owner->cells.size() + masses.size() < cfg::player_maxCells) {
             splitMass = nextMass / cfg::player_maxCells;
             if (splitMass < cfg::playerCell_minMassToSplit) {
                 float totalProjectedMass = totalMass + splitMass * cellsLeft;
@@ -119,7 +122,7 @@ void PlayerCell::pop() noexcept {
                 break;
             }
             if (cellsLeft == 1 && totalMass + (nextMass / 2) < _mass)
-                nextMass;
+                nextMass = nextMass;
             else
                 nextMass /= 2;
             totalMass += nextMass;
@@ -132,52 +135,42 @@ void PlayerCell::pop() noexcept {
     for (; cellsLeft > 0; --cellsLeft)
         masses.push_back(splitMass);
     // Send masses flying at random angles
-    cellAmountCache = cfg::player_maxCells;
     for (const float &mass : masses)
         split(float(rand(0.0, 2.0) * MATH_PI), toRadius(mass));
 }
 void PlayerCell::split(double angle, float radius) noexcept {
     // Spawn cell at splitting cell's position with new radius
-    e_ptr &newCell = map::spawnUnsafe<PlayerCell>(_position, radius, _color);
+    sptr<PlayerCell> newCell = map::spawn<PlayerCell>(_position + 20, radius, _color, false);
     newCell->setVelocity(cfg::playerCell_initialAcceleration, angle);
     newCell->setOwner(_owner);
     newCell->setCreator(_creatorId);
-    newCell->cellAmountCache = cellAmountCache;
-    newCell->speedMultiplier = speedMultiplier;
+    newCell->speedMultiplier = _owner->state() == PlayerState::DISCONNECTED ? 0 : speedMultiplier;
 
-    if (_owner == nullptr || _owner->state() == PlayerState::DISCONNECTED) {
-        newCell->speedMultiplier = 0;
-        return;
-    }
     // Add new cell to owner's cells
-    _owner->cells.push_back(newCell.get());
+    _owner->cells.push_back(newCell);
 
-    if (_owner->protocol != nullptr)
+    if (_owner->socket != nullptr)
         _owner->packetHandler.sendPacket(_owner->protocol->addNode(newCell->nodeId()));
 }
-void PlayerCell::consume(e_ptr &prey) noexcept {
+void PlayerCell::consume(e_ptr prey) noexcept {
     // Ejected cells ignore eat collision from the cell they were ejected
     // from for about 2 seconds (50 ticks) after initial boost
-    if (prey->type == CellType::EJECTED && prey->creator() == _nodeId && prey->age() <= 50)
+    if (prey->type == Ejected::TYPE && prey->creator() == _nodeId && prey->age() <= 50)
         return;
     // Do not gain mass from bots
-    if (!(prey->type == CellType::PLAYERCELL && 
+    if (!(prey->type == PlayerCell::TYPE && 
         prey->mass() <= cfg::playerCell_minMassToSplit * 0.5f && 
         _mass >= cfg::playerCell_maxMass / cfg::playerCell_minMassToSplit))
         setMass(_mass + prey->mass());
     // Split on a virus or mothercell
-    if (prey->type == CellType::VIRUS || prey->type == CellType::MOTHERCELL)
+    if (prey->type == Virus::TYPE || prey->type == MotherCell::TYPE)
         pop();
-    
     prey->setKiller(_nodeId); // prey was killed by this
-    map::despawn(prey.get()); // remove prey from map
+    map::despawn(prey); // remove prey from map
 }
-void PlayerCell::update(unsigned long long tick) noexcept {
+void PlayerCell::update() noexcept {
     move();
-
-    if (_owner != nullptr)
-        cellAmountCache = _owner->cells.size();
-
+ 
     // Update remerge
     float base = std::max(cfg::player_baseRemergeTime, std::floor(_radius * 0.2f)) * 25;
     if ((_owner && _owner->isForceMerging) || cfg::player_baseRemergeTime <= 0)
@@ -186,13 +179,13 @@ void PlayerCell::update(unsigned long long tick) noexcept {
         state = age() >= base ? (state | ignoreCollision) : (state & ~ignoreCollision);
 
     // Update decay once per second
-    if ((tick % 25) == 0) {
-        if (cfg::playerCell_radiusDecayRate <= 0) return;
-
+    if (++decayTick > 25) {
+        decayTick = 0;
+        if (cfg::playerCell_radiusDecayRate <= 0) 
+            return;
         float newRadius = std::sqrt(radiusSquared() * cfg::playerCell_radiusDecayRate);
         if (newRadius <= cfg::playerCell_baseRadius)
             return;
-
         setRadius(newRadius);
     }
 }
@@ -200,14 +193,13 @@ void PlayerCell::onDespawned() noexcept {
     if (!_owner) return;
 
     // Remove from owner's cells
-    _owner->cells.erase(std::find(_owner->cells.begin(), _owner->cells.end(), this));
+    _owner->cells.erase(std::find(_owner->cells.begin(), _owner->cells.end(), shared));
 
     if (_owner->cells.empty()) {
         if (_owner->state() != PlayerState::DISCONNECTED) {
             _owner->setDead();
         } else {
-            // NOW delete owner, their vector of 
-            // cells no longer needs to be accessed
+            // NOW it is safe to delete owner
             delete _owner;
             _owner = nullptr;
         }

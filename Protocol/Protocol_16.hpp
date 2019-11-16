@@ -1,7 +1,9 @@
 #pragma once
-#include "Protocol_11.hpp"
+#include "Protocol_15.hpp"
 
-class Protocol_16 : public Protocol_11 {
+class Protocol_16 : public Protocol_15 {
 public:
-    Protocol_16(Player *owner) : Protocol_11(owner) {}
+    Protocol_16(Player *owner): 
+        Protocol_15(owner) {
+    }
 };

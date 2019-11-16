@@ -38,6 +38,8 @@ struct Commands {
     void color(const std::vector<json> &args);
     void split(const std::vector<json> &args);
     void replace(const std::vector<json> &args);
+    void kick(const std::vector<json> &args);
+    void pstring(const std::vector<json>& args);
 
     // Miscellaneous
     void toradius(const std::vector<json> &args);
@@ -88,6 +90,8 @@ private:
         { "split", &Commands::split },
         { "replace", &Commands::replace },
         { "rp", &Commands::replace },
+        { "kick", &Commands::kick },
+        { "pstring", &Commands::pstring },
         
         { "toradius", &Commands::toradius },
         { "tr", &Commands::toradius },

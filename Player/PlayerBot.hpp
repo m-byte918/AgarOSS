@@ -5,8 +5,12 @@ class PlayerBot : public Player {
 public:
     PlayerBot(Server *_server);
 
-    void update(unsigned long long tick);
-    void updateDisconnection(unsigned long long tick);
+    void update();
+    void updateVisibleNodes();
+    void decide(sptr<PlayerCell::Entity> largestCell);
 
     ~PlayerBot();
+private:
+    int splitCooldown = 0;
+    std::vector<e_ptr> visibleNodes;
 };

@@ -16,6 +16,11 @@ struct Vec2 {
     std::string toString() const noexcept;
     double dot(const Vec2 &other) const noexcept;
 
+    Vec2 clampX(double _x, double low, double high) noexcept;
+    Vec2 clampY(double _y, double low, double high) noexcept;
+    Vec2 clampX(double _x, const Vec2 &other) noexcept;
+    Vec2 clampY(double _y, const Vec2 &other) noexcept;
+
     void operator=(const Vec2 &other) noexcept;
     void operator=(double val) noexcept;
     bool operator==(const Vec2 &other) const noexcept;

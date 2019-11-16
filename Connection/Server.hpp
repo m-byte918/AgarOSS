@@ -1,6 +1,6 @@
 #pragma once
-#pragma warning(push, 0)        
-#include <uWS/Hub.h>
+#pragma warning(push, 0)      
+#include <uwebsockets/App.h>
 #pragma warning(pop)
 #include <thread>
 
@@ -16,11 +16,9 @@ struct Server {
     int runningState = -1;
 
     void start();
-    void onClientConnection(uWS::Hub *hub);
-    void onClientDisconnection(uWS::Hub *hub);
-    void onClientMessage(uWS::Hub *hub);
     void end();
 
 private:
+    // Thread that uWebSockets will run on
     std::thread connectionThread;
 };

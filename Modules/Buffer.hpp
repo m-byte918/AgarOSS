@@ -5,6 +5,7 @@
 class Buffer {
 public:
     Buffer() noexcept;
+    Buffer(const std::string&) noexcept;
     Buffer(const std::vector<unsigned char>&) noexcept;
 
     void setBuffer(const std::vector<unsigned char>&) noexcept;
@@ -18,9 +19,12 @@ public:
     template <class T> inline Buffer &writeBytes(const T &val, bool LE = true);
     unsigned long long getWriteOffset() const noexcept;
 
+    Buffer &writeStr_UTF8(const std::string&) noexcept;
+    Buffer &writeStr_UCS2(const std::string&) noexcept;
+    Buffer &writeStrNull_UTF8(const std::string&) noexcept;
+    Buffer &writeStrNull_UCS2(const std::string&) noexcept;
+
     Buffer &writeBool(bool) noexcept;
-    Buffer &writeStr(const std::string&) noexcept;
-    Buffer &writeStrNull(const std::string&) noexcept;
     Buffer &writeInt8(char) noexcept;
     Buffer &writeUInt8(unsigned char) noexcept;
 
@@ -50,9 +54,12 @@ public:
     unsigned long long getReadOffset() const noexcept;
     template <class T> inline T readBytes(bool LE = true);
 
+    std::string        readStr_UTF8(unsigned long long len) noexcept;
+    std::string        readStr_UCS2(unsigned long long len) noexcept;
+    std::string        readStrNull_UTF8() noexcept;
+    std::string        readStrNull_UCS2() noexcept;
+
     bool               readBool() noexcept;
-    std::string        readStr(unsigned long long len) noexcept;
-    std::string        readStr() noexcept;
     char               readInt8() noexcept;
     unsigned char      readUInt8() noexcept;
 

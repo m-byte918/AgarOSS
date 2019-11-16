@@ -17,13 +17,8 @@ Logger::LogLevel Logger::ERR   = { Color::Red,         Color::Black, true,  true
 Logger::LogLevel Logger::FATAL = { Color::LightRed,    Color::Black, true,  true, "\n", "| [FATAL] ", 4 };
 Logger::LogLevel Logger::DEBUG = { Color::LightGreen,  Color::Black, false, true, "\n", "| [DEBUG] ", 5 };
 
-Logger::Logger() {
-    start();
-}
-
-Logger::Logger(const std::string &logName) {
-    LOG_NAME = logName;
-    start();
+Logger::Logger(const std::string &logName, const std::string &folder, const std::string &backupFolder) {
+    start(logName, folder, backupFolder);
 }
 
 bool Logger::createDir(const char *dir) {
@@ -44,13 +39,8 @@ std::string Logger::dateTimeString(bool returnTimeOnly) {
     time_t    now = time(0);
     #pragma warning(push)
     #pragma warning(disable: 4996)
-    struct tm tstruct = *localtime(&now);
+    strftime(buf, 80, (returnTimeOnly) ? "%H;%M;%S %p" : "%Y-%m-%d %H;%M;%S %p", localtime(&now));
     #pragma warning(pop)
-
-    if (returnTimeOnly)
-        strftime(buf, sizeof(buf), "%H;%M;%S %p", &tstruct);
-    else
-        strftime(buf, sizeof(buf), "%Y-%m-%d %H;%M;%S %p", &tstruct);
     return buf;
 }
 
@@ -128,20 +118,20 @@ int &Logger::getFileSeverity() noexcept {
     return maxFileSeverity;
 }
 
-void Logger::start() {
+void Logger::start(const std::string &logName, const std::string &folder, const std::string &backupFolder) {
     if (file.is_open()) return;
 
     try {
         struct stat info;
         const std::string timeStr        = dateTimeString();
-        const std::string fileName       = LOG_FLDR + "/" + LOG_NAME + ".log";
-        const std::string backupFileName = LOG_BACKUP_FLDR + "/" + LOG_NAME + "-" + timeStr + ".log";
+        const std::string fileName       = folder + "/" + logName + ".log";
+        const std::string backupFileName = backupFolder + "/" + logName + "-" + timeStr + ".log";
 
-        createDir(LOG_FLDR.c_str());
+        createDir(folder.c_str());
 
         if (stat(fileName.c_str(), &info) == 0) {
             // Backup previous log
-            createDir(LOG_BACKUP_FLDR.c_str());
+            createDir(backupFolder.c_str());
             std::rename(fileName.c_str(), backupFileName.c_str());
         }
         file.open(fileName, std::ofstream::out);
@@ -150,7 +140,7 @@ void Logger::start() {
         file << "=== Started " + timeStr + " ===\n";
     } catch (...) {
         file.close();
-        std::cerr << "Error starting logger\n";
+        std::cerr << "Failed to start logger\n";
     }
 }
 
@@ -182,9 +172,6 @@ const char *Logger::bc[16] = { "40","44","42","46","41","45","43","47","100","10
 #endif
 
 std::mutex Logger::lock;
-std::string Logger::LOG_NAME = "MainLog";
-std::string Logger::LOG_FLDR = "./logs";
-std::string Logger::LOG_BACKUP_FLDR = "./logs/LogBackups";
 std::ofstream Logger::file;
 int Logger::maxSeverity = 5;
 int Logger::maxFileSeverity = 5;

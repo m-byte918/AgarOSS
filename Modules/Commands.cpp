@@ -27,11 +27,11 @@ Player *Commands::getPlayer(const json &arg) {
             if (b->id == arg) player = (Player*)b;
     } else {
         for (Player *p : game->server.clients)
-            if (p->cellName() == arg) player = p;
+            if (p->cellNameUTF8() == arg) player = p;
         for (Minion *m : game->server.minions)
-            if (m->cellName() == arg) player = (Player*)m;
+            if (m->cellNameUTF8() == arg) player = (Player*)m;
         for (PlayerBot *b : game->server.playerBots)
-            if (b->cellName() == arg) player = (Player*)b;
+            if (b->cellNameUTF8() == arg) player = (Player*)b;
     }
     if (player == nullptr || player->state() == PlayerState::DISCONNECTED)
         throw "Player does not exist.";
@@ -74,9 +74,11 @@ void Commands::parse(std::string &in) {
     try {
         (this->*cmd)(parsedArgs);
         Logger::print('\n');
-    } catch (const char *e) {
+    }
+    catch (const char *e) {
         Logger::warn(e, '\n');
-    } catch (int index) {
+    }
+    catch (int index) {
         std::string flag = parsedArgs[index].dump();
         auto execute = [&](unsigned int id) {
             parsedArgs[index] = id;
@@ -86,15 +88,27 @@ void Commands::parse(std::string &in) {
                 Logger::warn(e);
             }
         };
-        if (flag.find('p') != std::string::npos)
-            for (Player *player : game->server.clients)
-                execute(player->id);
-        if (flag.find('b') != std::string::npos)
-            for (PlayerBot *bot : game->server.playerBots)
-                execute(bot->id);
-        if (flag.find('m') != std::string::npos)
-            for (Minion *minion : game->server.minions)
-                execute(minion->id);
+        if (flag.find('p') != std::string::npos) {
+            for (size_t i = 0; i < game->server.clients.size();) {
+                Player *p = game->server.clients[i];
+                execute(p->id);
+                if (p == game->server.clients[i]) ++i;
+            }
+        }
+        if (flag.find('b') != std::string::npos) {
+            for (size_t i = 0; i < game->server.playerBots.size();) {
+                PlayerBot *b = game->server.playerBots[i];
+                execute(b->id);
+                if (b == game->server.playerBots[i]) ++i;
+            }
+        }
+        if (flag.find('m') != std::string::npos) {
+            for (size_t i = 0; i < game->server.minions.size();) {
+                Minion *m = game->server.minions[i];
+                execute(m->id);
+                if (m == game->server.minions[i]) ++i;
+            }
+        }
         Logger::print('\n');
     }
 }
@@ -127,6 +141,7 @@ void Commands::playerlist(const std::vector<json> &args) {
 
     // columns
     std::vector<std::string> ids, states, protocols, cells, scores, centers, names;
+    int idSize = 2, protocolSize = 1, stateSize = 5, cellSize = 5, scoreSize = 5, centerSize = 8, nameSize = 4;
 
     // collect information
     for (Player *player : game->server.clients) {
@@ -142,10 +157,17 @@ void Commands::playerlist(const std::vector<json> &args) {
         cells.push_back(std::to_string(player->cells.size()));
         scores.push_back(std::to_string((int)player->score()));
         centers.push_back(player->center().toString());
-        names.push_back(player->cellName());
+        names.push_back(player->cellNameUTF8());
+        stateSize = std::max(stateSize, (int)states.back().size());
+        idSize = std::max(idSize, (int)ids.back().size());
+        protocolSize = std::max(protocolSize, (int)protocols.back().size());
+        cellSize = std::max(cellSize, (int)cells.back().size());
+        scoreSize = std::max(scoreSize, (int)scores.back().size());
+        centerSize = std::max(centerSize, (int)centers.back().size());
+        nameSize = std::max(nameSize, (int)names.back().size());
     }
     for (PlayerBot *bot : game->server.playerBots) {
-        if (bot->state()      == PlayerState::DEAD)         states.push_back("DEAD");
+        if (bot->state() == PlayerState::DEAD)         states.push_back("DEAD");
         else if (bot->state() == PlayerState::PLAYING)      states.push_back("PLAYING");
         else if (bot->state() == PlayerState::DISCONNECTED) states.push_back("DISCONNECTED");
 
@@ -154,50 +176,39 @@ void Commands::playerlist(const std::vector<json> &args) {
         cells.push_back(std::to_string(bot->cells.size()));
         scores.push_back(std::to_string((int)bot->score()));
         centers.push_back(bot->center().toString());
-        names.push_back(bot->cellName());
+        names.push_back(bot->cellNameUTF8());
+        stateSize = std::max(stateSize, (int)states.back().size());
+        idSize = std::max(idSize, (int)ids.back().size());
+        protocolSize = std::max(protocolSize, (int)protocols.back().size());
+        cellSize = std::max(cellSize, (int)cells.back().size());
+        scoreSize = std::max(scoreSize, (int)scores.back().size());
+        centerSize = std::max(centerSize, (int)centers.back().size());
+        nameSize = std::max(nameSize, (int)names.back().size());
     }
-    // sort strings by size
-    auto compare = [](const std::string& first, const std::string& second) {
-        return first.size() < second.size();
-    };
-    std::sort(ids.begin(),       ids.end(),       compare);
-    std::sort(states.begin(),    states.end(),    compare);
-    std::sort(protocols.begin(), protocols.end(), compare);
-    std::sort(cells.begin(),     cells.end(),     compare);
-    std::sort(scores.begin(),    scores.end(),    compare);
-    std::sort(centers.begin(),   centers.end(),   compare);
-    std::sort(names.begin(),     names.end(),     compare);
-    unsigned int idSize       = (unsigned int)ids.back().size();
-    unsigned int stateSize    = (unsigned int)states.back().size();
-    unsigned int protocolSize = (unsigned int)protocols.back().size();
-    unsigned int cellSize     = (unsigned int)cells.back().size();
-    unsigned int scoreSize    = (unsigned int)scores.back().size();
-    unsigned int centerSize   = (unsigned int)centers.back().size();
-    unsigned int nameSize     = (unsigned int)names.back().size();
-
     // print columns + whitespace the size of the largest string to keep
     // the columns neat and organized no matter the length of a single row
-    std::string ID     = "ID"       + std::string(idSize       < 2 ? 1 : idSize,       ' ');
-    std::string STATE  = "STATE"    + std::string(stateSize    < 5 ? 1 : stateSize,    ' ');
-    std::string P      = "P"        + std::string(protocolSize < 1 ? 1 : protocolSize, ' ');
-    std::string CELLS  = "CELLS"    + std::string(cellSize     < 5 ? 1 : cellSize,     ' ');
-    std::string SCORE  = "SCORE"    + std::string(scoreSize    < 5 ? 1 : scoreSize,    ' ');
-    std::string CENTER = "POSITION" + std::string(centerSize   < 8 ? 1 : centerSize,   ' ');
-    std::string NAME   = "NAME"     + std::string(nameSize     < 4 ? 1 : nameSize,     ' ');
-    Logger::print(ID + "| " + STATE + "| " + P + "| " + CELLS + "| " + SCORE + "| " + CENTER + "| " + NAME + "\n");
+    std::string ID = "ID" + std::string(idSize, ' ');
+    std::string STATE = "STATE" + std::string(stateSize, ' ');
+    std::string P = "P" + std::string(protocolSize, ' ');
+    std::string CELLS = "CELLS" + std::string(cellSize, ' ');
+    std::string SCORE = "SCORE" + std::string(scoreSize, ' ');
+    std::string CENTER = "POSITION" + std::string(centerSize, ' ');
+    std::string NAME = "NAME" + std::string(nameSize, ' ');
+    Logger::print(ID + "| " + STATE + "| " + P + "| " + CELLS + "| " + SCORE + "| " + CENTER +
+        "| " + NAME + "\n");
     Logger::print(std::string(ID.size() + STATE.size() + P.size() + CELLS.size()
         + SCORE.size() + CENTER.size() + NAME.size() + 12, '-') + "\n");
 
     // print rows
-    for (unsigned long long i = 0; i < totalPlayers; ++i) {
+    for (size_t i = 0; i < totalPlayers; ++i) {
         Logger::print(
-            " "  + ids[i]       + std::string(ID.size()     - ids[i].size() - 1,       ' ') +
-            "| " + states[i]    + std::string(STATE.size()  - states[i].size(),    ' ') +
-            "| " + protocols[i] + std::string(P.size()      - protocols[i].size(), ' ') +
-            "| " + cells[i]     + std::string(CELLS.size()  - cells[i].size(),     ' ') +
-            "| " + scores[i]    + std::string(SCORE.size()  - scores[i].size(),    ' ') +
-            "| " + centers[i]   + std::string(CENTER.size() - centers[i].size(),   ' ') +
-            "| " + names[i]     + std::string(NAME.size()   - names[i].size(),     ' ') + "\n"
+            " " + ids[i] + std::string(ID.size() - ids[i].size() - 1, ' ') +
+            "| " + states[i] + std::string(STATE.size() - states[i].size(), ' ') +
+            "| " + protocols[i] + std::string(P.size() - protocols[i].size(), ' ') +
+            "| " + cells[i] + std::string(CELLS.size() - cells[i].size(), ' ') +
+            "| " + scores[i] + std::string(SCORE.size() - scores[i].size(), ' ') +
+            "| " + centers[i] + std::string(CENTER.size() - centers[i].size(), ' ') +
+            "| " + names[i] + std::string(NAME.size() - names[i].size(), ' ') + "\n"
         );
     }
 }
@@ -226,72 +237,70 @@ void Commands::despawn(const std::vector<json> &args) {
 
     if (type == "food" || type == "all") {
         cfg::food_startAmount = 0;
-        Logger::info("Despawning ", map::entities[CellType::FOOD].size(), " food.");
-        while (!map::entities[CellType::FOOD].empty())
-            map::despawn(map::entities[CellType::FOOD].back().get());
+        Logger::info("Despawning ", map::entities[Food::TYPE].size(), " food.");
+        while (!map::entities[Food::TYPE].empty())
+            map::despawn(map::entities[Food::TYPE].back());
         cfg::food_startAmount = tempStartAmount;
     }
     if (type == "viruses" || type == "all") {
         tempStartAmount = cfg::virus_startAmount;
         cfg::virus_startAmount = 0;
-        Logger::info("Despawning ", map::entities[CellType::VIRUS].size(), " viruses.");
-        while (!map::entities[CellType::VIRUS].empty())
-            map::despawn(map::entities[CellType::VIRUS].back().get());
+        Logger::info("Despawning ", map::entities[Virus::TYPE].size(), " viruses.");
+        while (!map::entities[Virus::TYPE].empty())
+            map::despawn(map::entities[Virus::TYPE].back());
         cfg::virus_startAmount = tempStartAmount;
     }
     if (type == "ejected" || type == "all") {
-        Logger::info("Despawning ", map::entities[CellType::EJECTED].size(), " ejected.");
-        while (!map::entities[CellType::EJECTED].empty())
-            map::despawn(map::entities[CellType::EJECTED].back().get());
+        Logger::info("Despawning ", map::entities[Ejected::TYPE].size(), " ejected.");
+        while (!map::entities[Ejected::TYPE].empty())
+            map::despawn(map::entities[Ejected::TYPE].back());
     }
     if (type == "mothercells" || type == "all") {
         tempStartAmount = cfg::motherCell_startAmount;
         cfg::motherCell_startAmount = 0;
-        Logger::info("Despawning ", map::entities[CellType::MOTHERCELL].size(), " mothercells.");
-        while (!map::entities[CellType::MOTHERCELL].empty())
-            map::despawn(map::entities[CellType::MOTHERCELL].back().get());
+        Logger::info("Despawning ", map::entities[MotherCell::TYPE].size(), " mothercells.");
+        while (!map::entities[MotherCell::TYPE].empty())
+            map::despawn(map::entities[MotherCell::TYPE].back());
         cfg::motherCell_startAmount = tempStartAmount;
     }
     if (type == "playercells" || type == "all") {
-        Logger::info("Despawning ", map::entities[CellType::PLAYERCELL].size(), " playercells.");
-        while (!map::entities[CellType::PLAYERCELL].empty())
-            map::despawn(map::entities[CellType::PLAYERCELL].back().get());
+        Logger::info("Despawning ", map::entities[PlayerCell::TYPE].size(), " playercells.");
+        while (!map::entities[PlayerCell::TYPE].empty())
+            map::despawn(map::entities[PlayerCell::TYPE].back());
     }
 }
 
 void Commands::spawn(const std::vector<json> &args) {
     if (args.size() < 2 || args.size() > 8 || !args[0].is_number_unsigned() || !args[1].is_string())
         throw "Invalid arguments.";
-    if (args.size() == 3 || args.size() == 6 || args.size() == 7)
+    if (args.size() == 4 || args.size() == 6 || args.size() == 7)
         throw "Invalid argument length.";
 
     // Validate entity type
     std::string type = args[1].get<std::string>();
-
     if (type != "food" && type != "virus" && type != "ejected" && type != "motherCell")
         throw "Invalid entity type. Valid types are food, virus, ejected, and motherCell.";
-
+    // Validate radius
+    float radius = config[type]["baseRadius"];
+    if (args.size() >= 3) {
+        if (!args[2].is_number_unsigned())
+            throw "Mass must be unsigned.";
+        radius = std::max(utils::toRadius(args[2]), radius);
+    }
     // Validate position
     Vec2 position;
-    bool positionProvided = args.size() >= 4;
+    bool positionProvided = args.size() >= 5;
     if (positionProvided) {
-        if (!args[2].is_number() || !args[3].is_number())
+        if (!args[3].is_number() || !args[4].is_number())
             throw "Coordinates must be a number.";
-        double x = args[2];
-        double y = args[3];
+        double x = args[3];
+        double y = args[4];
         Rect bound = map::bounds();
 
         if (x < bound.left() || x > bound.right() || y < bound.bottom() || y > bound.top())
             throw "Position is out of bounds.";
 
         position = { x, y };
-    }
-    // Validate radius
-    float radius = config[type]["baseRadius"];
-    if (args.size() >= 5) {
-        if (!args[4].is_number_unsigned())
-            throw "Mass must be unsigned.";
-        radius = std::max(utils::toRadius(args[4]), radius);
     }
     // Validate color
     Color color;
@@ -308,41 +317,44 @@ void Commands::spawn(const std::vector<json> &args) {
         if (!positionProvided) position = randomPosition();
         if (!colorProvided) color = randomColor();
 
-        if (type == "food") map::spawn<Food>(position, radius, color);
-        else if (type == "virus") map::spawn<Virus>(position, radius, color);
+        if (type == "food") {
+            map::spawn<Food>(position, radius, colorProvided ? color : randomColor());
+        }
+        else if (type == "virus") {
+            map::spawn<Virus>(position, radius, colorProvided ? color : cfg::virus_color);
+        }
         else if (type == "ejected") {
-            e_ptr &e = map::spawn<Ejected>(position, radius, color);
-            e->setCreator(1);
-            e->setVelocity(
+            map::spawn<Ejected>(position, radius, colorProvided ? color : randomColor())->setVelocity(
                 (float)rand(1.0, (double)cfg::ejected_initialAcceleration),
                 rand(0.0, 2.0) * (double)MATH_PI
             );
+        } else {
+            map::spawn<MotherCell>(position, radius, colorProvided ? color : cfg::motherCell_color);
         }
-        else map::spawn<MotherCell>(position, radius, color);
     }
     std::string positionStr = positionProvided ? position.toString() : "random position";
-    std::string colorStr = colorProvided ? "color of " + color.toString() : "random color";
     Logger::info("Spawned ", args[0].dump(), " " + type + " at " + positionStr + " with ",
-        (unsigned)utils::toMass(radius), " mass and a " + colorStr);
+        (unsigned)utils::toMass(radius), " mass and a color of " + color.toString());
 }
 
 void Commands::playerbot(const std::vector<json> &args) {
-    Logger::warn("Playerbots are not implemented yet");
-
-    /*if (args.size() > 1 || args.size() == 1 && !args[0].is_number_unsigned())
+    if (args.size() > 1 || (args.size() == 1 && !args[0].is_number_unsigned()))
         throw "Invalid arguments.";
 
-    unsigned int amount = args.size() == 1 ? args[0] : 1;
+    unsigned int amount = args.size() == 1 ? args[0].get<unsigned int>() : 1;
 
     if (amount == 0) {
-        for (PlayerBot *bot : game->server.playerBots)
-            bot->onDisconnection();
-    } else for (unsigned int i = 0; i < amount; ++i) {
-        PlayerBot *bot = new PlayerBot(&game->server);
-        bot->setCellName("bot " + std::to_string(bot->id));
-        game->server.clients.push_back(bot);
+        while (!game->server.playerBots.empty())
+            game->server.playerBots.back()->onDisconnection();
+        Logger::print("Removed all player bots.\n");
+    } else {
+        Logger::info("Spawning ", amount, " player bots...\n");
+        for (unsigned int i = 0; i < amount; ++i) {
+            PlayerBot *bot = new PlayerBot(&game->server);
+            game->server.playerBots.push_back(bot);
+            bot->setFullName("bot " + std::to_string(game->server.playerBots.size()));
+        }
     }
-    Logger::print(amount == 0 ? "Removed all" : "Added ", amount, " player bots.\n");*/
 }
 
 // ******************** PLAYER COMMANDS ******************** //
@@ -365,45 +377,49 @@ void Commands::setposition(const std::vector<json> &args) {
     if (x < bounds.left() || x > bounds.right() || y < bounds.bottom() || y > bounds.top())
         throw "Position is out of bounds.";
 
-    for (Entity *cell : player->cells)
+    for (sptr<PlayerCell::Entity> cell : player->cells)
         cell->setPosition({ x, y });
 
-    Logger::print("Set position of " + player->cellName() + " to "
-        + player->center().toString() + "\n");
+    Logger::print("Set position of " + player->cellNameUTF8() + " to "
+        + Vec2(x, y).toString() + "\n");
 }
 
 void Commands::minion(const std::vector<json> &args) {
     if (args.size() < 2 || args.size() > 4 ||
-        !args[1].is_number_unsigned() || 
+        !args[1].is_number_unsigned() ||
         (!args[0].is_number_unsigned() && !args[0].is_string()) ||
-        (args.size() >= 3 && !args[2].is_number_unsigned()) || 
-        (args.size() == 4 && !args[3].is_string())) 
+        (args.size() >= 3 && !args[2].is_number_unsigned()) ||
+        (args.size() == 4 && !args[3].is_string()))
         throw "Invalid arguments.";
     if (args[0].is_string() && checkFlagStr(args[0], "pbm"))
         throw 0;
-
+    
     Player *player = getPlayer(args[0]);
-    if (player->state() != PlayerState::PLAYING)
-        throw "Player is not in-game.";
 
     if (args[1] == 0) {
-        Logger::print("Removed ", player->minions.size(), " minions from " + player->cellName());
+        Logger::print("Removed ", player->minions.size(), " minions from " + player->cellNameUTF8());
         while (!player->minions.empty())
             player->minions.back()->onDisconnection();
     } else {
         float spawnRadius = args.size() < 3 ? cfg::playerCell_baseRadius : utils::toRadius(args[2]);
-        if (spawnRadius < cfg::playerCell_baseRadius)
-            throw "Size cannot be less than cfg::playerCell_baseRadius.";
+        spawnRadius = std::max(cfg::playerCell_baseRadius, spawnRadius);
 
-        std::string name = args.size() < 4 ? player->skinName() + player->cellName() : args[3].get<std::string>();
-
+        std::string name = "";
+        if (args.size() < 4) {
+            if (player->skinName() != "")
+                name = cfg::player_skinNameTags.front() + player->skinName() + cfg::player_skinNameTags.back();
+            name += player->cellNameUTF8();
+        } else {
+            name = args[3].get<std::string>();
+        }
+        // Add minions
         for (unsigned int i = args[1]; i > 0; --i) {
             Minion *minion = new Minion(&game->server, player);
-            minion->setCellName(name);
+            minion->setFullName(name);
             minion->spawnRadius = spawnRadius;
             player->minions.push_back(minion);
         }
-        Logger::print("Added " + args[1].dump(), " minions for " + player->cellName(), 
+        Logger::print("Added " + args[1].dump(), " minions for " + player->cellNameUTF8(),
             " with the name '", name, "' and a spawn mass of ", utils::toMass(spawnRadius), '\n');
     }
 }
@@ -418,13 +434,13 @@ void Commands::pop(const std::vector<json> &args) {
     if (player->state() != PlayerState::PLAYING)
         throw "Player is not in-game.";
 
-    PlayerCell::Entity *biggestCell = player->cells[0];
-    for (Entity *cell : player->cells) {
+    sptr<PlayerCell::Entity> biggestCell = player->cells[0];
+    for (sptr<PlayerCell::Entity> cell : player->cells) {
         if (cell->radius() > biggestCell->radius())
             biggestCell = cell;
     }
     biggestCell->pop();
-    Logger::print("Popped " + player->cellName() + "\n");
+    Logger::print("Popped " + player->cellNameUTF8() + "\n");
 }
 
 void Commands::kill(const std::vector<json> &args) {
@@ -439,8 +455,8 @@ void Commands::kill(const std::vector<json> &args) {
 
     while (!player->cells.empty())
         map::despawn(player->cells.back());
-    
-    Logger::print("Killed " + player->cellName() + "\n");
+
+    Logger::print("Killed " + player->cellNameUTF8() + "\n");
 }
 
 void Commands::merge(const std::vector<json> &args) {
@@ -452,7 +468,7 @@ void Commands::merge(const std::vector<json> &args) {
     Player *player = getPlayer(args[0]);
     player->isForceMerging = !player->isForceMerging;
 
-    Logger::print(player->cellName() + " is ", player->isForceMerging
+    Logger::print(player->cellNameUTF8() + " is ", player->isForceMerging
         ? "" : "no longer ", "force merging", '\n');
 }
 
@@ -466,16 +482,14 @@ void Commands::setmass(const std::vector<json> &args) {
     Player *player = getPlayer(args[0]);
     if (player->state() != PlayerState::PLAYING)
         throw "Player is not in-game.";
+    if (args[1] == 0)
+        throw "Mass cannot be zero.";
 
-    float radius = utils::toRadius(args[1]);
+    float avgMass = args[1].get<float>() / player->cells.size();
+    for (sptr<PlayerCell::Entity> cell : player->cells)
+        cell->setMass(avgMass);
 
-    if (radius < cfg::playerCell_baseRadius)
-        throw "Size cannot be less than cfg::playerCell_baseRadius.";
-
-    for (Entity *cell : player->cells)
-        cell->setRadius(radius);
-
-    Logger::print("Set mass of " + player->cellName() + " to " + args[1].dump(), '\n');
+    Logger::print("Set mass of " + player->cellNameUTF8() + " to " + args[1].dump(), '\n');
 }
 
 void Commands::setname(const std::vector<json> &args) {
@@ -484,13 +498,13 @@ void Commands::setname(const std::vector<json> &args) {
         throw "Invalid arguments.";
     if (args[0].is_string() && checkFlagStr(args[0], "pbm"))
         throw 0;
-    
+
     Player *player = getPlayer(args[0]);
 
-    std::string oldName = player->cellName();
-    player->setCellName(args[1]);
+    std::string oldName = player->cellNameUTF8();
+    player->setCellName(args[1].get<std::string>());
 
-    Logger::print("Set cell name of " + oldName + " to " + player->cellName());
+    Logger::print("Set cell name of " + oldName + " to " + player->cellNameUTF8());
 }
 
 void Commands::setskin(const std::vector<json> &args) {
@@ -503,7 +517,7 @@ void Commands::setskin(const std::vector<json> &args) {
     Player *player = getPlayer(args[0]);
     player->setSkinName(args[1]);
 
-    Logger::print("Set skin name of " + player->cellName() + " to " + player->skinName());
+    Logger::print("Set skin name of " + player->cellNameUTF8() + " to " + player->skinName());
 }
 
 void Commands::spawnmass(const std::vector<json> &args) {
@@ -521,7 +535,7 @@ void Commands::spawnmass(const std::vector<json> &args) {
 
     player->spawnRadius = radius;
 
-    Logger::print("Set spawn mass of " + player->cellName() + " to " + args[1].dump(), '\n');
+    Logger::print("Set spawn mass of " + player->cellNameUTF8() + " to " + args[1].dump(), '\n');
 }
 
 void Commands::explode(const std::vector<json> &args) {
@@ -537,10 +551,10 @@ void Commands::explode(const std::vector<json> &args) {
     float ejectedBaseMass = utils::toMass(cfg::ejected_baseRadius);
     int amountOfEjected;
 
-    for (Entity *cell : player->cells) {
+    for (sptr<PlayerCell::Entity> cell : player->cells) {
         amountOfEjected = (int)std::ceil(cell->mass() / ejectedBaseMass);
         for (; amountOfEjected > 0; --amountOfEjected) {
-            e_ptr &e = map::spawn<Ejected>(cell->position(), cfg::ejected_baseRadius, cell->color());
+            sptr<Ejected> e = map::spawn<Ejected>(cell->position(), cfg::ejected_baseRadius, cell->color());
             e->setCreator(cell->nodeId());
             e->setVelocity(
                 (float)rand(1.0, (double)cfg::ejected_initialAcceleration * 2),
@@ -559,10 +573,10 @@ void Commands::speed(const std::vector<json> &args) {
         throw 0;
 
     Player *player = getPlayer(args[0]);
-    for (Entity *cell : player->cells)
+    for (sptr<PlayerCell::Entity> cell : player->cells)
         cell->speedMultiplier = args[1];
 
-    Logger::info("Set speed multiplier of " + player->cellName() + " to " + args[1].dump());
+    Logger::info("Set speed multiplier of " + player->cellNameUTF8() + " to " + args[1].dump());
 }
 
 void Commands::color(const std::vector<json> &args) {
@@ -580,10 +594,10 @@ void Commands::color(const std::vector<json> &args) {
         throw "Player is not in-game.";
 
     Color newColor(args[1], args[2], args[3]);
-    for (Entity *cell : player->cells)
+    for (sptr<PlayerCell::Entity> cell : player->cells)
         cell->setColor(newColor);
 
-    Logger::info("Set color of " + player->cellName() + " to " + newColor.toString());
+    Logger::info("Set color of " + player->cellNameUTF8() + " to " + newColor.toString());
 }
 
 void Commands::split(const std::vector<json> &args) {
@@ -600,7 +614,7 @@ void Commands::split(const std::vector<json> &args) {
     for (unsigned int i = args[1]; i > 0; --i)
         player->onSplit();
 
-    Logger::info("Split " + player->cellName() + " " + args[1].dump() + " times");
+    Logger::info("Split " + player->cellNameUTF8() + " " + args[1].dump() + " times");
 }
 
 void Commands::replace(const std::vector<json> &args) {
@@ -623,20 +637,46 @@ void Commands::replace(const std::vector<json> &args) {
         throw "Player is not in-game.";
 
     while (!player->cells.empty()) {
-        Vec2 position = player->cells.back()->position();
-        float radius = player->cells.back()->radius();
-        Color color = player->cells.back()->color();
-        map::despawn(player->cells.back());
+        e_ptr cell = player->cells.back();
         if (type == "mothercell")
-            map::spawnUnsafe<MotherCell>(position, radius, color);
+            map::spawn<MotherCell>(cell->position(), cell->radius(), cell->color(), false);
         else if (type == "virus")
-            map::spawnUnsafe<Virus>(position, radius, color);
+            map::spawn<Virus>(cell->position(), cell->radius(), cell->color(), false);
         else if (type == "ejected")
-            map::spawnUnsafe<Ejected>(position, radius, color);
+            map::spawn<Ejected>(cell->position(), cell->radius(),
+                cell->color(), false)->setCreator(cell->nodeId());
         else if (type == "food")
-            map::spawnUnsafe<Food>(position, radius, color);
+            map::spawn<Food>(cell->position(), cell->radius(), cell->color(), false);
+        map::despawn(cell);
     }
-    Logger::info("Replaced the cells of " + player->cellName() + " with " + type);
+    Logger::info("Replaced the cells of " + player->cellNameUTF8() + " with " + type);
+}
+
+void Commands::kick(const std::vector<json> &args) {
+    if (args.size() != 1 || (!args[0].is_number_unsigned() && !args[0].is_string()))
+        throw "Invalid arguments.";
+    if (args[0].is_string() && checkFlagStr(args[0], "pbm"))
+        throw 0;
+
+    Player *player = getPlayer(args[0]);
+
+    if (player->owner == nullptr) {
+        if (player->socket == nullptr)
+            ((PlayerBot*)player)->onDisconnection();
+        else
+            player->socket->close();
+    } else {
+        ((Minion*)player)->onDisconnection();
+    }
+    Logger::info("Kicked " + player->cellNameUTF8());
+}
+
+void Commands::pstring(const std::vector<json>& args) {
+    if (args.size() != 1 || (!args[0].is_number_unsigned() && !args[0].is_string()))
+        throw "Invalid arguments.";
+    if (args[0].is_string() && checkFlagStr(args[0], "pbm"))
+        throw 0;
+    Logger::info('\n' + getPlayer(args[0])->toString());
 }
 
 // ******************** MISCELLANEOUS ******************** //
@@ -714,24 +754,35 @@ void Commands::setconfig(const std::vector<json> &args) {
     else
         config[args[0].get<std::string>()][args[1].get<std::string>()] = args[2];
 
-    Logger::info("Reloading configurations...\n");
     game->loadConfig(); // Reload config
 }
 
 void Commands::debug(const std::vector<json> &args) {
-    args;
-    Logger::info("Clients: ", game->server.clients.size());
+    // Calculate average score
+    double avgScore = 0;
+    for (Player *player : game->server.clients) avgScore += player->score();
+    for (PlayerBot *bot : game->server.playerBots) avgScore += bot->score();
+    size_t botAmount = game->server.playerBots.size();
+    size_t clientAmount = game->server.clients.size();
+    if (clientAmount + botAmount > 0)
+        avgScore /= clientAmount + botAmount;
+
+    // Print debug info
+    Logger::info("Clients: ", clientAmount);
     Logger::info("Minions: ", game->server.minions.size());
-    Logger::info("Player Bots: ", game->server.playerBots.size());
+    Logger::info("Player Bots: ", botAmount);
     Logger::info();
-    Logger::info("Food: ", map::entities[CellType::FOOD].size());
-    Logger::info("Viruses: ", map::entities[CellType::VIRUS].size());
-    Logger::info("Ejected: ", map::entities[CellType::EJECTED].size());
-    Logger::info("MotherCells: ", map::entities[CellType::MOTHERCELL].size());
-    Logger::info("PlayerCells: ", map::entities[CellType::PLAYERCELL].size());
+    Logger::info("Average player score: ", avgScore);
+    Logger::info();
+    Logger::info("Food: ", map::entities[Food::TYPE].size());
+    Logger::info("Viruses: ", map::entities[Virus::TYPE].size());
+    Logger::info("Ejected: ", map::entities[Ejected::TYPE].size());
+    Logger::info("MotherCells: ", map::entities[MotherCell::TYPE].size());
+    Logger::info("PlayerCells: ", map::entities[PlayerCell::TYPE].size());
     Logger::info("Total quadTree objects: ", map::quadTree.totalObjects());
     Logger::info("Total quadTree children: ", map::quadTree.totalChildren());
     Logger::info();
+    Logger::info("Current game tick: ", game->tickCount);
     Logger::info("Update time for Game::mainLoop(): ", game->updateTime, "ms");
 }
 
@@ -747,7 +798,7 @@ void Commands::help(const std::vector<json> &args) {
         "\n| playerlist, pl                       Prints a list of information for each player  |"
         "\n| exit, stop, shutdown                 Stops the game and closes the server          |"
         "\n| despawn, rm [<type>]                 Despawns all entities of the specified type   |"
-        "\n| spawn, add <amount> <type> [(<x> <y>)] [mass] [(<r> <g> <b>)]                      |"
+        "\n| spawn, add <amount> <type> [mass] [(<x> <y>)] [(<r> <g> <b>)]                      |"
         "\n|                                      Spawns an entity.                             |"
         "\n| playerbot, pb [<amount>]             Adds or removes playerbots to the server      |"
         "\n|                                                                                    |"
@@ -764,7 +815,7 @@ void Commands::help(const std::vector<json> &args) {
         "\n| kill (<playerid>|<playername>)       Kills a player                                |"
         "\n| merge, mg (<playerid>|<playername>)  Forces a player's cells to remerge            |"
         "\n| setmass, sm (<playerid>|<playername>) <mass>                                       |"
-        "\n|                                      Sets mass of a player                         |"
+        "\n|                                      Sets absolute mass of a player                |"
         "\n| setname, sn (<playerid>|<playername>) <name>                                       |"
         "\n|                                      Sets a player's cell name                     |"
         "\n| setskin, ss (<playerid>|<playername>) <name>                                       |"
@@ -777,10 +828,12 @@ void Commands::help(const std::vector<json> &args) {
         "\n| color (<playerid>|<playername>) <r> <g> <b>                                        |"
         "\n|                                      Sets the color of a player's cells            |"
         "\n| split (<playerid>|<playername>) <amount>                                           |"
-        "\n|                                      Splits a player the specified amount of times |" 
+        "\n|                                      Splits a player the specified amount of times |"
         "\n| replace, rp (<playerid>|<playername>) <type>                                       |"
         "\n|                                      Replaces a player's cells with the specified  |"
         "\n|                                      entity type                                   |"
+        "\n| kick (<playerid>|<playername>)       Kicks a player from the server                |"
+        "\n| pstring (<playerid>|<playername>)    Prints debug string of a player               |"
         "\n|                                                                                    |"
         "\n+-----------------------------------Miscellaneous------------------------------------+"
         "\n|                                                                                    |"

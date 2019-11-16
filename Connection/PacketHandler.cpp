@@ -1,4 +1,7 @@
 #include "PacketHandler.hpp"
+#pragma warning(push, 0)
+#include <uwebsockets/App.h>
+#pragma warning(pop)
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp"
 #include "../Player/Player.hpp"
@@ -27,53 +30,60 @@ PacketHandler::PacketHandler(Player *owner) :
 
 void PacketHandler::sendPacket(Buffer &buffer) const {
     const std::vector<unsigned char> &buf = buffer.getBuffer();
-    if (buf.empty() || !player->socket || player->socket->isClosed())
+    if (buf.empty() || !player->socket)
         return;
-    player->socket->send(reinterpret_cast<const char *>(buf.data()), buf.size(), uWS::BINARY);
+    player->socket->send(std::string_view((char*)&buf[0], buf.size()), uWS::BINARY);
     buffer.clear();
 }
 
 void PacketHandler::onPacket(std::vector<unsigned char> &packet) {
     Buffer buffer(packet);
-
+    
     // Process OpCode
     switch ((OpCode)buffer.readUInt8()) {
-    case OpCode::SPAWN:
-        onSpawn(buffer.readStr());
-        break;
-    case OpCode::SPECTATE:
-        onSpectate();
-        break;
-    case OpCode::SET_TARGET:
-        onTarget({ (double)buffer.readInt32_LE(), (double)buffer.readInt32_LE() });
-        break;
-    case OpCode::SPLIT:
-        onSplit();
-        break;
-    case OpCode::QKEY_PRESSED:
-        onQKey();
-        break;
-    case OpCode::EJECT:
-        onEject();
-        break;
-    case OpCode::CAPTCHA_RESPONSE:
-        Logger::info("Captcha Response packet received.");
-        break;
-    case OpCode::PONG:
-        Logger::info("Pong packet received.");
-        break;
-    case OpCode::ESTABLISH_CONNECTION:
-        onEstablishedConnection(buffer.readUInt32_LE());
-        break;
-    case OpCode::CONNECTION_KEY:
-        onConnectionKey();
-        break;
+        case OpCode::SPAWN:
+            if (player->state() != PlayerState::PLAYING) {
+                if (player->protocolNum < 6)
+                    player->setFullName(buffer.readStrNull_UCS2(), true);
+                else
+                    player->setFullName(buffer.readStrNull_UTF8());
+                player->onSpawn();
+            }
+            break;
+        case OpCode::SPECTATE:
+            onSpectate();
+            break;
+        case OpCode::FACEBOOK_DATA:
+            break;
+        case OpCode::SET_TARGET:
+            onTarget({ (double)buffer.readInt32_LE(), (double)buffer.readInt32_LE() });
+            break;
+        case OpCode::SPLIT:
+            onSplit();
+            break;
+        case OpCode::QKEY_PRESSED:
+            onQKey();
+            break;
+        case OpCode::QKEY_RELEASED:
+            break;
+        case OpCode::EJECT:
+            onEject();
+            break;
+        case OpCode::CAPTCHA_RESPONSE:
+            Logger::info("Captcha Response packet received.");
+            break;
+        case OpCode::MOBILE_DATA:
+            break;
+        case OpCode::PONG:
+            Logger::info("Pong packet received.");
+            break;
+        case OpCode::ESTABLISH_CONNECTION:
+            onEstablishedConnection(buffer.readUInt32_LE());
+            break;
+        case OpCode::CONNECTION_KEY:
+            onConnectionKey();
+            break;
     }
-}
-
-void PacketHandler::onSpawn(std::string name) const noexcept {
-    Logger::info("Spawn packet received.");
-    player->onSpawn(name);
 }
 
 void PacketHandler::onSpectate() const noexcept {
@@ -81,25 +91,23 @@ void PacketHandler::onSpectate() const noexcept {
     player->onSpectate();
 }
 void PacketHandler::onTarget(const Vec2 &mouse) const noexcept {
-    //Logger::info("Set Target packet received.");
     player->onTarget(mouse);
 }
 void PacketHandler::onSplit() const noexcept {
     player->onSplit();
 }
 void PacketHandler::onQKey() const noexcept {
-    //Logger::info("Q keypress packet received.");
     player->onQKey();
 }
 void PacketHandler::onEject() const noexcept {
     player->onEject();
 }
-void PacketHandler::onEstablishedConnection(const unsigned &protocol) const noexcept {
+void PacketHandler::onEstablishedConnection(unsigned protocol) const noexcept {
     Logger::info("Establish Connection packet received.");
     Logger::info("Protocol version: " + std::to_string(protocol));
     if (protocol < cfg::server_minSupportedProtocol ||
         protocol > cfg::server_maxSupportedProtocol) {
-        player->socket->close(1002, "Unsupported protocol");
+        player->socket->end(1002, "Unsupported protocol");
         return;
     }
     switch (protocol) {
@@ -118,9 +126,13 @@ void PacketHandler::onEstablishedConnection(const unsigned &protocol) const noex
         case 16: { player->protocol = new Protocol_16(player); break; }
         case 17: { player->protocol = new Protocol_17(player); break; }
         case 18: { player->protocol = new Protocol_18(player); break; }
-        default: { player->protocol = new Protocol(player); }
+        default: { 
+            player->protocol = new Protocol_4(player); 
+            Logger::warn("Protocol assumed as 4.");
+        }
     }
     player->protocolNum = protocol;
+    player->server->clients.push_back(player);
 }
 void PacketHandler::onConnectionKey() const noexcept {
     Logger::info("Connection Key packet received.");

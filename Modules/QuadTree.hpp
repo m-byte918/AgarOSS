@@ -72,6 +72,7 @@ public:
     bool insert(Collidable *obj);
     bool remove(Collidable *obj) noexcept;
     bool update(Collidable *obj);
+    bool contains(Collidable *obj) const noexcept;
     const std::vector<Collidable*> &getObjectsInBound(const Rect &bound);
     unsigned totalChildren() const noexcept;
     unsigned totalObjects() const noexcept;
@@ -80,12 +81,12 @@ public:
 
     ~QuadTree();
 private:
-    bool	  isLeaf = true;
-    unsigned  level = 0;
-    unsigned  capacity;
-    unsigned  maxLevel;
-    Rect      bounds;
-    QuadTree* parent = nullptr;
+    bool	  isLeaf      = true;
+    Rect      bounds      = Rect();
+    unsigned  level       = 0;
+    unsigned  capacity    = 0;
+    unsigned  maxLevel    = 0;
+    QuadTree* parent      = nullptr;
     QuadTree* children[4] = { nullptr, nullptr, nullptr, nullptr };
     std::vector<Collidable*> objects, foundObjects;
 

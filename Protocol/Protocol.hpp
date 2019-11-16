@@ -4,6 +4,8 @@
 class Player;
 class Protocol {
 public:
+    Buffer buffer;
+
     Protocol(Player *owner);
 
     virtual Buffer &addNode(unsigned int nodeId);
@@ -23,6 +25,7 @@ public:
     virtual Buffer &showArrow(const Vec2 &position, const std::string &playerName);
     virtual Buffer &updateLeaderboardList();
     virtual Buffer &updateLeaderboardRGB(const std::vector<float> &board);
+    virtual Buffer &updateLeaderboardText(const std::vector<std::string> &board);
     virtual Buffer &updateNodes(const std::vector<e_ptr> &eatNodes, const std::vector<e_ptr> &updNodes,
         const std::vector<e_ptr> &delNodes, const std::vector<e_ptr> &addNodes);
     virtual Buffer &updateViewport(const Vec2 &position, float scale);
@@ -31,7 +34,7 @@ public:
     virtual Buffer &serverStat(const std::string &info);
     virtual Buffer &auth(const std::string &str);
 
-    Buffer buffer;
-private:
-    Player *player;
+    virtual ~Protocol();
+protected:
+    Player *player = nullptr;
 };

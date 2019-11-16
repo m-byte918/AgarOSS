@@ -16,20 +16,26 @@ class Game {
 public:
     Game();
     void mainLoop();
+    void updateLeaderboard();
     void loadConfig();
     void startLogger();
     ~Game();
 
     Commands commands{ nullptr };
     unsigned long long tickCount = 0;
+
+    std::vector<Player*> leaders;
 private:
     long long updateTime = 0;
-    GameState state      = GameState::RUNNING;
+    GameState state = GameState::RUNNING;
     Server server;
 };
 
 namespace cfg {
 
+extern std::string logger_logName;
+extern std::string logger_logFolder;
+extern std::string logger_logBackupFolder;
 extern int logger_maxSeverity;
 extern int logger_maxFileSeverity;
 extern Logger::Color logger_printTextColor;
@@ -38,12 +44,15 @@ extern Logger::Color logger_backgroundColor;
 extern std::string server_host;
 extern short server_port;
 extern std::string server_name;
+extern unsigned int server_playerBots;
+extern unsigned int server_minionsPerPlayer;
 extern unsigned long long server_maxConnections;
 extern unsigned int server_maxSupportedProtocol;
 extern unsigned int server_minSupportedProtocol;
 
 extern unsigned int game_mode;
 extern unsigned int game_timeStep;
+extern unsigned int game_leaderboardLength;
 extern double game_mapWidth;
 extern double game_mapHeight;
 extern unsigned int game_quadTreeLeafCapacity;
@@ -55,6 +64,7 @@ extern float entity_minEatOverlap;
 extern float entity_minEatSizeMult;
 
 extern unsigned int player_maxNameLength;
+extern std::string player_skinNameTags;
 extern unsigned int player_maxCells;
 extern float player_maxFreeroamScale;
 extern float player_maxFreeroamSpeed;
@@ -62,7 +72,6 @@ extern unsigned int player_viewBoxWidth;
 extern unsigned int player_viewBoxHeight;
 extern unsigned int player_viewBoxHeight;
 extern float player_baseRemergeTime;
-extern unsigned long long player_cellRemoveTime;
 extern int player_chanceToSpawnFromEjected;
 extern unsigned long long player_collisionIgnoreTime;
 

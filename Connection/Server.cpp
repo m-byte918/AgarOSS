@@ -5,79 +5,86 @@
 #include "../Player/PlayerBot.hpp"
 #include "../Modules/Logger.hpp"
 
+const std::string version =
+"    _                  ___  ___ ___        _   _ _ ___ \n"
+"   /_\\  __ _ __ _ _ _ / _ \\/ __/ __| __ __/ | | | |_  )\n"
+"  / _ \\/ _` / _` | '_| (_) \\__ \\__ \\ \\ V /| |_|_  _/ / \n"
+" /_/ \\_\\__, \\__,_|_|  \\___/|___/___/  \\_/ |_(_) |_/___|\n"
+"       |___/                                           \n\n";
+
 void Server::start() {
+    Logger::print(version);
     Logger::info("Starting uWS Server...");
     connectionThread = std::thread([&]() {
-        uWS::Hub hub;
-        onClientConnection(&hub);
-        onClientDisconnection(&hub);
-        onClientMessage(&hub);
-        if (hub.listen(cfg::server_host.c_str(), cfg::server_port)) {
-            runningState = 1;
-            Logger::print("\n");
-            Logger::info("Server is listening on ", cfg::server_host, ":", cfg::server_port);
-            hub.run();
-        } else {
-            runningState = 0;
-            Logger::error("Server couldn't listen on ", cfg::server_host, ":", cfg::server_port);
-            Logger::error("Close out of applications running on the same port or run this with root priveleges.");
-            Logger::print("Press any key to exit...\n");
-        }
-    });
-}
-void Server::onClientConnection(uWS::Hub *hub) {
-    hub->onConnection([&](uWS::WebSocket<uWS::SERVER> *ws, uWS::HttpRequest req) {
-        req;
-        if (++connections >= cfg::server_maxConnections) {
-            ws->close(1000, "Server connection limit reached");
-            return;
-        }
-        // allocating player because it needs to exist outside of this loop
-        Player *player = new Player(this);
-        player->socket = ws;
-        player->packetHandler = PacketHandler(player);
-        ws->setUserData(player);
-        clients.push_back(player);
-
-        Logger::debug("Connection made");
-    });
-}
-void Server::onClientDisconnection(uWS::Hub *hub) {
-    hub->onDisconnection([&](uWS::WebSocket<uWS::SERVER> *ws, int code, char *message, size_t length) {
-        code;
-        message;
-        length;
-        Player *player = (Player*)ws->getUserData();
-        player->onDisconnection();
-        delete player->protocol;
-        --connections;
-        Logger::debug("Disconnection made");
-    });
-}
-void Server::onClientMessage(uWS::Hub *hub) {
-    hub->onMessage([&](uWS::WebSocket<uWS::SERVER> *ws, char *message, size_t length, uWS::OpCode opCode) {
-        opCode;
-        if (length == 0) return;
-
-        if (length > 256) {
-            ws->close(1009, "no spam pls");
-            return;
-        }
-        std::vector<unsigned char> packet(message, message + length);
-        Player *player = (Player*)ws->getUserData();
-        if (player != nullptr)
+        // Because setUserData() no longer exists...x
+        struct PerSocketData {
+            Player *player = nullptr;
+        };
+        // Because designated initializers are no longer supported...
+        uWS::App::WebSocketBehavior behavior;
+        behavior.open = [&](auto *ws, auto *req) {
+            if (++connections >= cfg::server_maxConnections) {
+                ws->end(1000, "Server connection limit reached");
+                return;
+            }
+            PerSocketData *data = (PerSocketData*)ws->getUserData();
+            data->player = new Player(this);
+            data->player->socket = ws;
+            data->player->packetHandler = PacketHandler(data->player);
+            Logger::debug("Connection made");
+        };
+        behavior.message = [&](auto *ws, std::string_view message, uWS::OpCode opCode) {
+            size_t length = message.size();
+            if (length == 0) return;
+            if (length > 256) {
+                ws->end(1009, "no spam pls");
+                return;
+            }
+            std::vector<unsigned char> packet(message.begin(), message.begin() + length);
+            Player *player = ((PerSocketData*)ws->getUserData())->player;
+            if (player == nullptr)
+                return;
             player->packetHandler.onPacket(packet);
+            if (player->protocol == nullptr)
+                ws->end(1002, "Unsupported protocol");
+        };
+        behavior.close = [&](auto *ws, int code, std::string_view message) {
+            Player* player = ((PerSocketData*)ws->getUserData())->player;
+            player->onDisconnection();
+            --connections;
+            Logger::debug("Disconnection made");
+        };
+        uWS::App().ws<PerSocketData>("/*", std::move(behavior)).listen(cfg::server_host, cfg::server_port, [&](auto *token) {
+            if (token) {
+                runningState = 1;
+                Logger::print("\n");
+                Logger::info("Thread ", std::this_thread::get_id(), " listening on ", cfg::server_host, ":", cfg::server_port);
+            } else {
+                runningState = 0;
+                Logger::error("Thread ", std::this_thread::get_id(), " failed to listen on ", cfg::server_host, ":", cfg::server_port);
+                Logger::error("Close out of applications running on the same port or re-run with root priveleges.");
+                Logger::print("Press any key to exit...\n");
+            }
+            conVar.notify_one();
+        }).run();
     });
 }
 void Server::end() {
     Logger::warn("Stopping uWS Server...");
-    for (Player *player : clients) {
-        delete player->protocol;
+    while (!clients.empty()) {
+        Player *player = clients.back();
+        player->socket->close();
         delete player;
     }
-    for (Minion *minion : minions)
+    while (!minions.empty()) {
+        Minion* minion = minions.back();
+        minion->onDisconnection();
         delete minion;
-    for (PlayerBot *playerBot : playerBots)
+    }
+    while (!playerBots.empty()) {
+        PlayerBot* playerBot = playerBots.back();
+        playerBot->onDisconnection();
         delete playerBot;
+    }
     connectionThread.detach();
 }

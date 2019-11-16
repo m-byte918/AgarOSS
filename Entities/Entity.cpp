@@ -1,4 +1,5 @@
-#include "Entity.hpp"
+#include "Ejected.hpp"
+#include "PlayerCell.hpp"
 #include <sstream> // Entity::toString()
 #include "../Game/Map.hpp"
 #include "../Game/Game.hpp" // configs
@@ -13,34 +14,35 @@ void Entity::setColor(const Color &color) noexcept {
     state |= needsUpdate;
 }
 void Entity::setPosition(const Vec2 &position, bool validate) noexcept {
-    state |= needsUpdate;
     _position = position;
 
-    if (!validate) return; // No need
-    
-    const float hr = _radius * 0.5f; // half radius
-
-    // Validate left
-    double maxIndent = map::bounds().left() + hr;
-    if (_position.x <= maxIndent) {
-        _position.x = maxIndent;
-        _velocity.x = -_velocity.x;
+    // Bounce off of map borders
+    if (validate) {
+        // Validate left
+        const float hr = _radius * 0.5f; // half radius
+        double maxIndent = map::bounds().left() + hr;
+        if (_position.x <= maxIndent) {
+            _position.x = maxIndent;
+            _velocity.x = -_velocity.x;
+        }
+        // Validate right
+        if ((maxIndent = map::bounds().right() - hr) < _position.x) {
+            _position.x = maxIndent;
+            _velocity.x = -_velocity.x;
+        }
+        // Validate bottom
+        if ((maxIndent = map::bounds().bottom() + hr) > _position.y) {
+            _position.y = maxIndent;
+            _velocity.y = -_velocity.y;
+        }
+        // Validate top
+        if ((maxIndent = map::bounds().top() - hr) < _position.y) {
+            _position.y = maxIndent;
+            _velocity.y = -_velocity.y;
+        }
     }
-    // Validate right
-    if ((maxIndent = map::bounds().right() - hr) < _position.x) {
-        _position.x = maxIndent;
-        _velocity.x = -_velocity.x;
-    }
-    // Validate bottom
-    if ((maxIndent = map::bounds().bottom() + hr) > _position.y) {
-        _position.y = maxIndent;
-        _velocity.y = -_velocity.y;
-    }
-    // Validate top
-    if ((maxIndent = map::bounds().top() - hr) < _position.y) {
-        _position.y = maxIndent;
-        _velocity.y = -_velocity.y;
-    }
+    obj.bound.setPosition(_position.x, _position.y);
+    Entity::update();
 }
 void Entity::setVelocity(float acceleration, double angle) noexcept {
     _acceleration = acceleration;
@@ -48,17 +50,26 @@ void Entity::setVelocity(float acceleration, double angle) noexcept {
         std::cos(angle),
         std::sin(angle)
     };
-    map::acceleratingEntities[_nodeId] = shared;
+    map::movingEntities.push_back(shared);
+}
+void Entity::setVelocity(float acceleration, Vec2 velocity) noexcept {
+    _acceleration = acceleration;
+    _velocity = velocity;
+    map::movingEntities.push_back(shared);
 }
 void Entity::setMass(float mass) noexcept {
     _mass = mass;
+    _invMass = 1.0f / mass;
     _radius = toRadius(mass);
-    state |= needsUpdate;
+    obj.bound.setSize(_radius * 2.0, _radius * 2.0);
+    Entity::update();
 }
 void Entity::setRadius(float radius) noexcept {
     _radius = radius;
     _mass = toMass(radius);
-    state |= needsUpdate;
+    _invMass = 1.0f / _mass;
+    obj.bound.setSize(_radius * 2.0, _radius * 2.0);
+    Entity::update();
 }
 void Entity::setCreator(unsigned int id) noexcept {
     _creatorId = id;
@@ -91,6 +102,9 @@ float Entity::mass() const noexcept {
 float Entity::radius() const noexcept {
     return _radius;
 }
+float Entity::invMass() const noexcept {
+    return _invMass;
+}
 float Entity::acceleration() const noexcept {
     return _acceleration;
 }
@@ -113,24 +127,14 @@ unsigned long long Entity::age() const noexcept {
 //************************* MISC *************************//
 
 bool Entity::decelerate() noexcept {
-    if (state & isRemoved) {
-        //logVerbose(Entity could not be decelerated because it is removed.);
-        _acceleration = 0;
-        return false;
-    }
-    if (_acceleration <= 0.01) {
-        //logVerbose(Entity could not be decelerated because its acceleration is too low.);
-        _acceleration = 0;
-        return false;
-    }
     // decelerate by X units per tick
-    float deceleration = _acceleration / cfg::entity_decelerationPerTick;
+    float deceleration = std::round(_acceleration / cfg::entity_decelerationPerTick);
+    if (deceleration <= cfg::entity_minAcceleration) {
+        _acceleration = 0.0f;
+        return false;
+    }
     _acceleration -= deceleration;
-    
-    // https://gist.github.com/Megabyte918/0b921e69f9d84b3ea7b8fdebef4f6812#file-gameconfiguration-json-L142
-    if (_acceleration >= cfg::entity_minAcceleration)
-        // Keep accelerating in the same direction
-        setPosition(_position + _velocity * deceleration, true);
+    setPosition(_position + _velocity * deceleration, true);
     return true;
 }
 bool Entity::intersects(e_ptr other) const noexcept {
@@ -146,31 +150,36 @@ void Entity::move() noexcept {
 void Entity::pop() noexcept {
 }
 void Entity::split(double angle, float radius) noexcept {
-    angle, radius;
 }
 void Entity::autoSplit() noexcept {
 }
-void Entity::update(unsigned long long tick) noexcept {
-    tick;
+void Entity::update() noexcept {
+    if (!map::quadTree.update(&obj) && game != nullptr) {
+        Logger::error("Entity could not be updated: ", toString());
+        // If removed from quadtree and not re-inserted for ANY reason, re-insert it.
+        if (!map::quadTree.contains(&obj))
+            map::quadTree.insert(&obj);
+    } else {
+        state |= needsUpdate;
+    }
 }
 void Entity::onDespawned() noexcept  {
 }
-void Entity::collideWith(Entity *other) noexcept {
-    if (!shared || !other->shared || state & isRemoved || 
-        other->state & isRemoved || !intersects(other->shared))
+void Entity::collideWith(e_ptr other) noexcept {
+    if (!shared || !other || state & isRemoved || other->state & isRemoved || !intersects(other))
         return;
 
     // Determine if predator should become prey
     bool isPredatorSmaller = _radius <= other->radius() * cfg::entity_minEatSizeMult;
 
     // Resolve rigid collisions
-    if (_creatorId != 0 && other->creator() != 0 && type == other->type) {
+    if (type == other->type) {
         // Ejected -> resolve collision immediately
-        if (type == CellType::EJECTED) {
-            map::resolveCollision(shared, other->shared);
+        if (type == Ejected::TYPE) {
+            map::resolveCollision(shared, other);
             // Set velocity again to start chain reaction
-            if (other->acceleration() == 0)
-                other->setVelocity(1.0f, position().angle());
+            if (other->acceleration() == 0.0f)
+                other->setVelocity(5.125f, position().angle());
             return;
         }
         // Playercells from same owner
@@ -179,14 +188,14 @@ void Entity::collideWith(Entity *other) noexcept {
                 // Just split -> resolve collision after 15 ticks
                 if (age() > cfg::player_collisionIgnoreTime &&
                     other->age() > cfg::player_collisionIgnoreTime) {
-                    map::resolveCollision(shared, other->shared);
+                    map::resolveCollision(shared, other);
                     return;
                 }
                 return; // Merging -> do not eat or resolve collision
             }
         }
         // Viruses & Mothercells -> do not eat or resolve collision
-        else if (type != CellType::PLAYERCELL && _owner == other->owner())
+        else if (type != PlayerCell::TYPE && _owner == other->owner())
             return;
         // Playercells from different owners -> do not consume
         // if predator is smaller
@@ -195,7 +204,7 @@ void Entity::collideWith(Entity *other) noexcept {
     }
     // Resolve eat collisions
     e_ptr predator = shared;
-    e_ptr prey = other->shared;
+    e_ptr prey = other;
     if (isPredatorSmaller) {
         predator = prey;
         prey = shared;
@@ -210,10 +219,10 @@ void Entity::collideWith(Entity *other) noexcept {
         return; // Not close enough to eat
     predator->consume(prey);
 }
-void Entity::consume(e_ptr &prey) noexcept {
+void Entity::consume(e_ptr prey) noexcept {
     prey->setKiller(_nodeId); // prey was killed by this
     setMass(_mass + prey->_mass); // add prey's mass to this
-    map::despawn(prey.get()); // remove prey from map
+    map::despawn(prey); // remove prey from map
 }
 // debugging purposes
 std::string Entity::toString() noexcept {
@@ -230,48 +239,49 @@ std::string Entity::toString() noexcept {
         << "\nneedsUpdate: " << (state & needsUpdate)
         << "\nignoreCollision: " << (state & ignoreCollision)
 
-        << "\n\nmouseCache: " << mouseCache.toString()
-        << "\ncellAmountCache: " << cellAmountCache
+        << "\nmouseCache: " << mouseCache.toString()
         << "\nspeedMultiplier: " << speedMultiplier
 
-        << "\n\nshared: {"
-        << "\n    unique(): " << 0/*shared.unique()*/
-        << "\n    use_count(): " << shared.use_count()
+        << "\n\nshared: " << shared
+        << " {\n    use_count(): " << shared.use_count()
+        << "\n    get(): " << shared.get()
         << "\n}"
-
-        << "\n\nobj: {\n"
-        << "\n    data: " << std::any_cast<Entity*>(obj.data)
+        << "\nobj: {"
+        << "\n    data: " << (obj.data.has_value() ? std::any_cast<e_ptr>(obj.data) : 0)
         << "\n    bound: {"
-        << "\n        x():" << obj.bound.x()
-        << "\n        y():" << obj.bound.y()
-        << "\n        width():" << obj.bound.width()
-        << "\n        height():" << obj.bound.height()
-        << "\n        halfWidth():" << obj.bound.halfWidth()
-        << "\n        halfHeight():" << obj.bound.halfHeight()
-        << "\n        left():" << obj.bound.left()
-        << "\n        top():" << obj.bound.top()
-        << "\n        right():" << obj.bound.right()
-        << "\n        bottom():" << obj.bound.bottom()
+        << "\n        x(): " << obj.bound.x()
+        << "\n        y(): " << obj.bound.y()
+        << "\n        width(): " << obj.bound.width()
+        << "\n        height(): " << obj.bound.height()
+        << "\n        halfWidth(): " << obj.bound.halfWidth()
+        << "\n        halfHeight(): " << obj.bound.halfHeight()
+        << "\n        left(): " << obj.bound.left()
+        << "\n        top(): " << obj.bound.top()
+        << "\n        right(): " << obj.bound.right()
+        << "\n        bottom(): " << obj.bound.bottom()
         << "\n    }"
         << "\n}"
-
-        << "\n\nowner(): " << owner()
+        << "\nowner(): " << owner()
         << "\ncolor(): " << const_cast<Color&>(color()).toString()
         << "\nposition(): " << position().toString()
         << "\nvelocity(): " << velocity().toString()
         << "\nmass(): " << mass()
         << "\nradius(): " << radius()
+        << "\ninvMass(): " << invMass()
         << "\nacceleration(): " << acceleration()
         << "\nradiusSquared(): " << radiusSquared()
         << "\nnodeId(): " << nodeId()
         << "\ncreator(): " << creator()
         << "\nkillerId(): " << killerId()
         << "\nage(): " << age()
-
         << "\n\ndecelerate(): " << decelerate()
 
         << "\n\nbirthTick: " << birthTick
-        << "\ngame: " << game;
+        << "\ngame: " << game
+        << "\nis in quadtree? " << map::quadTree.contains(&obj)
+        << "\nis in its vector? " << 
+        (std::find(map::entities[type].begin(), map::entities[type].end(), shared) != map::entities[type].end());
+        
     return ss.str();
 }
 

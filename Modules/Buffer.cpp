@@ -5,6 +5,9 @@
 
 Buffer::Buffer() noexcept {
 }
+Buffer::Buffer(const std::string &str) noexcept :
+    buffer(str.begin(), str.end()) {
+}
 Buffer::Buffer(const std::vector<unsigned char> &_buffer) noexcept:
     buffer(_buffer) {
 }
@@ -55,16 +58,27 @@ unsigned long long Buffer::getWriteOffset() const noexcept {
     return writeOffset;
 }
 
-Buffer &Buffer::writeBool(bool val) noexcept {
-    return writeBytes<bool>(val);
-}
-Buffer &Buffer::writeStr(const std::string &str) noexcept {
-    for (const unsigned char &s : str) writeInt8(s);
+Buffer &Buffer::writeStr_UTF8(const std::string &str) noexcept {
+    for (const unsigned char &s : str) 
+        writeUInt8(s);
     return *this;
 }
-Buffer &Buffer::writeStrNull(const std::string &str) noexcept {
-    writeStr(str);
-    return writeInt8(0);
+Buffer &Buffer::writeStr_UCS2(const std::string &str) noexcept {
+    for (size_t i = 0; i < str.size() + (str.size() & 1); ++i)
+        writeUInt8(str[i]);
+    return *this;
+}
+Buffer &Buffer::writeStrNull_UTF8(const std::string &str) noexcept {
+    writeStr_UTF8(str);
+    return writeUInt8(0);
+}
+Buffer &Buffer::writeStrNull_UCS2(const std::string &str) noexcept {
+    writeStr_UCS2(str);
+    return writeUInt16_LE(0);
+}
+
+Buffer &Buffer::writeBool(bool val) noexcept {
+    return writeBytes<bool>(val);
 }
 Buffer &Buffer::writeInt8(char val) noexcept {
     return writeBytes<char>(val);
@@ -163,18 +177,40 @@ template <class T> inline T Buffer::readBytes(bool LE) {
     return result;
 }
 
-bool Buffer::readBool() noexcept {
-    return readBytes<bool>();
-}
-std::string Buffer::readStr(unsigned long long len) noexcept {
+std::string Buffer::readStr_UTF8(unsigned long long len) noexcept {
     if (readOffset + len > buffer.size())
-        return "Buffer out of range (provided length greater than buffer size)";
+        len = buffer.size() - readOffset;
     std::string result(buffer.begin() + readOffset, buffer.begin() + readOffset + len);
     readOffset += len;
     return result;
 }
-std::string Buffer::readStr() noexcept {
-    return readStr(buffer.size() - readOffset);
+std::string Buffer::readStr_UCS2(unsigned long long len) noexcept {
+    if (readOffset + len > buffer.size())
+        len = buffer.size() - readOffset;
+    std::string result;
+    for (unsigned long long i = 0; i < len + ((buffer.size() - readOffset) & 1); i++)
+        result += readUInt8();
+    return result;
+}
+std::string Buffer::readStrNull_UTF8() noexcept {
+    unsigned long long len = readOffset;
+    for (; len < buffer.size(); ++len) {
+        if (+buffer[len] == 0) 
+            break;
+    }
+    return readStr_UTF8(len);
+}
+std::string Buffer::readStrNull_UCS2() noexcept {
+    unsigned long long len = readOffset;
+    for (; len + 2 < buffer.size(); len += 2) {
+        if (+(buffer[len] + buffer[len + 1]) == 0)
+            break;
+    }
+    return readStr_UCS2(len);
+}
+
+bool Buffer::readBool() noexcept {
+    return readBytes<bool>();
 }
 char Buffer::readInt8() noexcept {
     return readBytes<char>();

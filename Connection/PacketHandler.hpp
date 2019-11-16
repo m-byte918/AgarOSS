@@ -1,9 +1,4 @@
 #pragma once
-
-#pragma warning(push, 0)
-#include <uWS/Hub.h>
-#pragma warning(pop)
-
 #include "../Modules/Utils.hpp"
 #include "../Modules/Buffer.hpp"
 
@@ -28,7 +23,7 @@ class Player; // forward declaration
 class Packet; // forward declaration
 class PacketHandler {
 public:
-    Player *player;
+    Player *player = nullptr;
     PacketHandler(Player *owner);
 
     // Packet sending
@@ -36,13 +31,12 @@ public:
 
     // Packet recieving
     void onPacket(std::vector<unsigned char>&);
-    void onSpawn(std::string name) const noexcept;
     void onSpectate() const noexcept;
     void onTarget(const Vec2 &mouse) const noexcept;
     void onSplit() const noexcept;
     void onQKey() const noexcept;
     void onEject() const noexcept;
-    void onEstablishedConnection(const unsigned &protocol) const noexcept;
+    void onEstablishedConnection(unsigned protocol) const noexcept;
     void onConnectionKey() const noexcept;
 
     ~PacketHandler();

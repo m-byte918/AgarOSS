@@ -138,6 +138,13 @@ bool QuadTree::update(Collidable *obj) {
     return insert(obj);
 }
 
+// Check if object exists in quadtree
+bool QuadTree::contains(Collidable *obj) const noexcept {
+    if (obj->qt == nullptr) return false;
+    if (obj->qt != this) return obj->qt->contains(obj);
+    return std::find(objects.begin(), objects.end(), obj) != objects.end();
+}
+
 // Searches quadtree for objects within the provided boundary and returns them in vector
 const std::vector<Collidable*> &QuadTree::getObjectsInBound(const Rect &bound) {
     foundObjects.clear();

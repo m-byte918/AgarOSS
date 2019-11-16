@@ -37,20 +37,16 @@ public:
         int       severity; // Severity of log-level
     } PRINT, INFO, WARN, ERR, FATAL, DEBUG;
 
-    ////////////////////////////////
-    /// \brief Constructs a logger
-    /// \note Calls Logger::start()
-    /// \see Logger::start()
-    ///////////////////////////////
-    Logger();
-
     //////////////////////////////////////////////////////
-    /// \brief Constructs a logger and sets it's log name 
+    /// \brief Constructs and starts a logger
     /// \note Calls Logger::start()
-    /// \param logName Name of log to be set
-    /// \see Logger::start(), Logger::LOG_NAME
+    /// \param logName Name of the current log (optional, default="MainLog")
+    /// \param folder Location of the current log (optional, default="./logs")
+    /// \param backupFolder Location of previous logs (optional, default="./logs/LogBackups")
+    /// \see Logger::start()
     /////////////////////////////////////////////////////
-    Logger(const std::string &logName);
+    Logger(const std::string &logName = "MainLog", const std::string &folder = "./logs", 
+        const std::string &backupFolder = "./logs/LogBackups");
 
     ///////////////////////////////////////////////////////////////
     /// \brief Creates a directory
@@ -244,9 +240,13 @@ public:
     ///////////////////////////////////////////////////////////////////////////////////////////
     /// \brief Opens log file stream for recording logs
     /// \note Logging is still possible without calling start(), but logs will not be recorded
+    /// \param logName Name of the current log (optional, default="MainLog")
+    /// \param folder Location of the current log (optional, default="./logs")
+    /// \param backupFolder Location of previous logs (optional, default="./logs/LogBackups")
     /// \see Logger::file
     //////////////////////////////////////////////////////////////////////////////////////////
-    static void start();
+    static void start(const std::string& logName = "MainLog", const std::string& folder = "./logs", 
+        const std::string& backupFolder = "./logs/LogBackups");
 
     //////////////////////////////////////////////////////////////////
     /// \brief Closes log file stream, saves and stops recording logs
@@ -281,10 +281,7 @@ private:
         static const char *bc[16];
     #endif // _WIN32
 
-    static std::mutex lock;             // Logger::write synchronization across threads 
-    static std::string LOG_NAME;        // Name of log file
-    static std::string LOG_FLDR;        // Name of log folder
-    static std::string LOG_BACKUP_FLDR; // Name of log backups folder
+    static std::mutex lock;             // Logger::write synchronization across threads
     static std::ofstream file;          // Log file
     static int maxSeverity;             // Maximum log-level severity for console write
     static int maxFileSeverity;         // Maximum log-level severity for file write

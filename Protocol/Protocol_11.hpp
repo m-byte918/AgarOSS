@@ -1,23 +1,34 @@
 #pragma once
-#include "Protocol.hpp"
-#include "../Entities/Entity.hpp"
+#include "Protocol_10.hpp"
+#include "../Entities/Food.hpp"
+#include "../Entities/Ejected.hpp"
 
-class Protocol_11 : public Protocol 
-{
+class Protocol_11 : public Protocol_10 {
 public:
-    Protocol_11(Player *owner) : 
-        Protocol(owner) {
+    Protocol_11(Player *owner): 
+        Protocol_10(owner) {
     }
     virtual Buffer &setBorder() {
-        Protocol::setBorder();
+        buffer.writeUInt8(0x40);
+        buffer.writeDouble_LE(map::bounds().left());
+        buffer.writeDouble_LE(map::bounds().bottom());
+        buffer.writeDouble_LE(map::bounds().right());
+        buffer.writeDouble_LE(map::bounds().top());
         buffer.writeUInt32_LE(cfg::game_mode);
-        return buffer.writeStr(cfg::server_name + "\0");
+        return buffer.writeStrNull_UTF8(cfg::server_name);
     }
     virtual Buffer &updateNodes(const std::vector<e_ptr> &eatNodes, const std::vector<e_ptr> &updNodes,
         const std::vector<e_ptr> &delNodes, const std::vector<e_ptr> &addNodes) {
-        Protocol::updateNodes(eatNodes, updNodes, delNodes, addNodes);
+        buffer.writeUInt8(0x10);
 
-        for (const e_ptr &entity : addNodes) {
+        // Eat record
+        buffer.writeUInt16_LE((unsigned short)eatNodes.size());
+        for (e_ptr entity : eatNodes) {
+            buffer.writeUInt32_LE(entity->killerId());
+            buffer.writeUInt32_LE((unsigned)entity->nodeId());
+        }
+        // Add record
+        for (e_ptr entity : addNodes) {
             buffer.writeUInt32_LE((unsigned)entity->nodeId());
             buffer.writeInt32_LE((int)entity->position().x);
             buffer.writeInt32_LE((int)entity->position().y);
@@ -29,17 +40,15 @@ public:
                 flags |= 0x01; // has spikes on outline
             if (true)
                 flags |= 0x02; // has color
-            if (entity->type == CellType::PLAYERCELL) {
-                if (entity->owner()->skinName() != "")
-                    flags |= 0x04;
-                if (entity->owner()->cellName() != "")
-                    flags |= 0x08;
+            if (entity->type == PlayerCell::TYPE) {
+                if (entity->owner()->skinName() != "") flags |= 0x04;
+                if (entity->owner()->cellNameUTF8() != "") flags |= 0x08;
             }
             if (entity->state & isAgitated)
                 flags |= 0x10;
-            if (entity->type == CellType::EJECTED)
+            if (entity->type == Ejected::TYPE)
                 flags |= 0x20;
-            if (entity->type == CellType::FOOD)
+            if (entity->type == Food::TYPE)
                 flags |= 0x80; // extended flags
             buffer.writeUInt8(flags); // flag
 
@@ -50,12 +59,11 @@ public:
                 buffer.writeUInt8(entity->color().g); // green
                 buffer.writeUInt8(entity->color().b); // blue
             }
-            if (flags & 0x04)
-                buffer.writeStrNull(entity->owner()->skinName());
-            if (flags & 0x08)
-                buffer.writeStrNull(entity->owner()->cellName());
+            if (flags & 0x04) buffer.writeStrNull_UTF8(entity->owner()->skinName());
+            if (flags & 0x08) buffer.writeStrNull_UTF8(entity->owner()->cellNameUTF8());
         }
-        for (const e_ptr &entity : updNodes) {
+        // Update record
+        for (e_ptr entity : updNodes) {
             buffer.writeUInt32_LE((unsigned)entity->nodeId());
             buffer.writeInt32_LE((int)entity->position().x);
             buffer.writeInt32_LE((int)entity->position().y);
@@ -65,13 +73,13 @@ public:
 
             if (entity->state & isSpiked)
                 flags |= 0x01; // virus
-            if (entity->type == CellType::PLAYERCELL)
+            if (entity->type == PlayerCell::TYPE)
                 flags |= 0x02; // has color
             if (entity->state & isAgitated)
                 flags |= 0x10;
-            if (entity->type == CellType::EJECTED)
+            if (entity->type == Ejected::TYPE)
                 flags |= 0x20;
-            if (entity->type == CellType::FOOD)
+            if (entity->type == Food::TYPE)
                 flags |= 0x80; // extended flags
             buffer.writeUInt8(flags); // flag
 
@@ -87,7 +95,7 @@ public:
 
         // Remove record
         buffer.writeUInt16_LE((unsigned short)delNodes.size());
-        for (const e_ptr &entity : delNodes)
+        for (e_ptr entity : delNodes)
             buffer.writeUInt32_LE((unsigned int)entity->nodeId());
         return buffer;
     }
